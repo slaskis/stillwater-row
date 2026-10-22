@@ -154,6 +154,10 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .newach .ach{flex-direction:row;text-align:left;gap:10px;background:rgba(242,178,92,.08);border:1px solid rgba(242,178,92,.3);border-radius:12px;padding:8px 12px}
 .btns{display:flex;gap:10px;flex-wrap:wrap}
 .btns>*{flex:1 1 160px}
+.jroute svg{display:block;width:100%;height:auto}
+.jmeta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--dim);flex-wrap:wrap}
+.jmeta b{font-family:var(--num);font-size:22px;color:var(--mist);font-weight:600;font-variant-numeric:tabular-nums}
+.jfact{font-size:13px;line-height:1.45;color:var(--mist);background:rgba(143,225,238,.07);border-left:2px solid var(--ghost);padding:8px 10px;border-radius:0 8px 8px 0}
 .opt{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px}
 #p10{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 118px);transform:translateX(-50%);pointer-events:none;
   font-family:var(--num);font-weight:700;font-size:26px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
@@ -261,6 +265,13 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     </div>
   </div>
   <div class="col">
+    <div class="panel card sect" id="journeyCard">
+      <div class="lbl">Journey</div>
+      <div class="seg" id="jSeg"></div>
+      <div class="jroute" id="jRoute"></div>
+      <div class="jmeta" id="jMeta"></div>
+      <div class="jfact" id="jFact"></div>
+    </div>
     <div class="panel card sect">
       <div class="lbl">Your logbook</div>
       <div class="kpis">
@@ -336,10 +347,21 @@ const ACH=[
   {id:'streak3', code:'3D', name:'Three mornings', desc:'Row 3 days running'},
   {id:'life42', code:'42K', name:'River marathon', desc:'42,195 m in total'},
   {id:'fleet1', code:'1st', name:'Head of the river', desc:'Win a fleet race'},
+  {id:'voyage', code:'J', name:'Voyager', desc:'Complete a whole journey'},
   {id:'p10', code:'P10', name:'Power ten', desc:'Find 8% extra speed in a Power 10'},
 ];
 const DIST_ACH=[[100,'d100'],[500,'d500'],[1000,'d1k'],[2000,'d2k'],[5000,'d5k'],[10000,'d10k']];
 const GATES=[500,1000,2000,5000,10000];
+
+/* ================= journeys ================= */
+const JOURNEYS=[{"id": "gota", "name": "Göta kanal", "sub": "Mem → Sjötorp", "km": 190, "stops": [{"name": "Mem", "km": 0, "fact": "The canal's eastern end, where it meets the Baltic at Slätbaken."}, {"name": "Söderköping", "km": 6, "fact": "An old canal town a few kilometres in (distance approximate)."}, {"name": "Berg", "km": 37, "fact": "The Carl Johan staircase: seven locks in a row lifting boats up from Lake Roxen."}, {"name": "Motala", "km": 92, "fact": "Where the canal reaches Lake Vättern."}, {"name": "Karlsborg", "km": 125, "fact": "A fortress town on the far shore of Lake Vättern."}, {"name": "Lake Viken", "km": 140, "fact": "The canal's highest point, 91.7 m above sea level (distance approximate)."}, {"name": "Töreboda", "km": 160, "fact": "The largest of the canal harbours that grew up with the railway (distance approximate)."}, {"name": "Sjötorp", "km": 190, "fact": "The western end on Lake Vänern. 190 km and 58 locks behind you."}]}, {"id": "skargard", "name": "Stockholm archipelago", "sub": "Strömkajen → Sandhamn", "km": 52, "stops": [{"name": "Strömkajen", "km": 0, "fact": "Where the archipelago boats leave from, in front of the Grand Hôtel."}, {"name": "Fjäderholmarna", "km": 6, "fact": "The first islands out of the city (distance approximate)."}, {"name": "Stavsnäs", "km": 38, "fact": "The mainland's eastern harbour, 7–8 nautical miles from Sandhamn."}, {"name": "Sandhamn", "km": 52, "fact": "About 28 nautical miles out from Stockholm. Time for a swim."}]}];
+function jCur(){ return JOURNEYS.find(j=>j.id===store.prefs.journey)||JOURNEYS[0]; }
+function jMeters(j){ return Math.min(store.journeys[j.id]||0,j.km*1000); }
+function jNextStop(j,m){ return j.stops.find(s=>s.km*1000>m)||null; }
+function jLastStop(j,m){ let l=j.stops[0]; for(const s of j.stops) if(s.km*1000<=m) l=s; return l; }
+const kmFmt=m=>(m/1000).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1});
+const toGo=m=>m<1000?fmtM(m)+' m':kmFmt(m)+' km';
+let journeyOffset=null;   // journey metres at the start of the current session
 
 /* ================= physics constants ================= */
 const DRIVE=0.72, IMPULSE=1.2, DRAG=0.03;      // ~24 s/m settles near 2:05/500 m
@@ -539,6 +561,12 @@ function buildChunk(k){
   for(let d=Math.ceil(d0/10)*10; d<d0+CH; d+=10){ if(d<0) continue; const c=d%50===0?white:orange;
     for(const off of [-6,0.2,6.5]) bu.push({x:cx(d)+off,z:-d,col:c}); }
   grp.add(instanced(GEO.buoy,MAT.buoy,bu,(t,o)=>{o.position.set(t.x,.06,t.z);o.scale.set(1,1,1);o.rotation.set(0,0,0);}));
+  // journey stops reached during this session get their own banner
+  if(journeyOffset!==null){ const j=jCur();
+    for(const st of j.stops){ const m=Math.round(st.km*1000-journeyOffset); if(m<=0||m<d0||m>=d0+CH) continue;
+      const g2=new THREE.Group(); g2.position.set(cx(m),0,-m); g2.rotation.y=-Math.atan(dcx(m));
+      for(const sd of [-1,1]){ const p=new THREE.Mesh(GEO.pole,MAT.pole); p.scale.set(1,7.6,1); p.position.x=sd*(W/2-1.2); g2.add(p); }
+      const ban=plane(labelTex(st.name.toUpperCase(),1024,96,'#1f4f6b','#f4f0e6'),W-2.4,2.2); ban.position.y=6.4; g2.add(ban); grp.add(g2); } }
   // markers
   for(let m=Math.ceil(d0/250)*250; m<d0+CH; m+=250){
     if(m<=0) continue;
@@ -797,6 +825,7 @@ function startSession(){
   sess={wk:w.id,t:0,started:false,demo:autoOn,strokes:0,samples:[0],splits:[],next500:500,sub2:0,rateRun:0,
         newAch:[],nextDistAch:0,gapSign:0,complete:false,score:0,lastCall:{},vEma:0,stopCalled:false,
         p10:{phase:'idle',next:75+Math.random()*45,wait:0,left:0,vs:0,ts:0,base:0},beatNext:0};
+  const jj=jCur(); journeyOffset=jMeters(jj)<jj.km*1000?jMeters(jj):null; sess.jNext=journeyOffset===null?null:jNextStop(jj,journeyOffset);
   const ck=store.prefs.cond==='auto'?autoCond():store.prefs.cond; if(ck!==cond) applyCond(ck);
   finishAt=w.type==='dist'?w.target:0;
   phys.v=0; phys.d=0; phys.drive=0; strokeTimes=[]; lastStrokeAt=simT-10;
@@ -866,8 +895,12 @@ function finish(complete){
     const dk=dayKey(new Date()); if(!store.days.includes(dk)) store.days.push(dk); if(store.days.length>400) store.days.shift();
     if(streak()>=3) unlock('streak3');
     if(store.lifetime>=42195) unlock('life42');
+    if(journeyOffset!==null){ const j=jCur(), before=jMeters(j); store.journeys[j.id]=Math.min(j.km*1000,before+rec.d);
+      sess.jLine={name:j.name,before,after:jMeters(j),km:j.km,next:jNextStop(j,jMeters(j))};
+      if(jMeters(j)>=j.km*1000) unlock('voyage'); }
     save();
   }
+  journeyOffset=null;
   renderDone({w,t,d,complete,rivalVerdict,pbLine,saveable});
   $('done').hidden=false; releaseWake();
 }
@@ -1009,6 +1042,9 @@ function frame(now){
     const P=sess.p10; if(P.phase==='on'){ P.vs+=phys.v*dt; P.ts+=dt; }
     else if(P.phase==='idle'&&sess.t>=P.next&&simT-lastStrokeAt<3&&!(w.type==='dist'&&w.target-phys.d<300)) startPower10();
     if(store.prefs.beat>0&&simT>=sess.beatNext){ sess.beatNext=simT+60/store.prefs.beat; tick(); }
+    if(sess.jNext&&journeyOffset!==null&&journeyOffset+phys.d>=sess.jNext.km*1000){ const st=sess.jNext, j=jCur();
+      toast('Reached '+st.name,st.fact||j.name); say('You have reached '+st.name+'.',true); addScore(75,null); chime();
+      sess.jReached=(sess.jReached||[]).concat(st.name); sess.jNext=jNextStop(j,st.km*1000); }
     coxTick(w);
     if(w.type==='dist'&&phys.d>=w.target) finish(true);
     else if(w.type==='time'&&sess.t>=w.target) finish(true);
@@ -1160,8 +1196,32 @@ $('bConnect').onclick=()=>connectRower(false);
 $('bConnectAll').onclick=()=>connectRower(true);
 
 /* ================= home screen ================= */
+function routeSvg(j,m){
+  const Wd=420,H=74,x0=14,x1=Wd-14,y=34, X=km=>x0+(x1-x0)*km/j.km, cur=m/1000, nx=jNextStop(j,m), ls=jLastStop(j,m);
+  let s='<svg viewBox="0 0 '+Wd+' '+H+'" role="img" aria-label="'+esc(j.name)+' route progress">';
+  s+='<line x1="'+x0+'" x2="'+x1+'" y1="'+y+'" y2="'+y+'" stroke="rgba(214,232,234,.22)" stroke-width="4" stroke-linecap="round"/>';
+  s+='<line x1="'+x0+'" x2="'+X(cur)+'" y1="'+y+'" y2="'+y+'" stroke="#f2b25c" stroke-width="4" stroke-linecap="round"/>';
+  j.stops.forEach(st=>{ const done=st.km<=cur; s+='<circle cx="'+X(st.km)+'" cy="'+y+'" r="'+(done?4:3.5)+'" fill="'+(done?'#f2b25c':'#10242a')+'" stroke="'+(done?'#f2b25c':'#9db3b7')+'" stroke-width="1.5"/>'; });
+  const lab=(st,top,anchor)=>'<text x="'+X(st.km)+'" y="'+(top?y-12:y+22)+'" text-anchor="'+anchor+'" font-size="12" fill="'+(top?'#e7eff0':'#9db3b7')+'" font-family="Figtree, system-ui, sans-serif">'+esc(st.name)+'</text>';
+  const anc=st=>st.km<j.km*.12?'start':(st.km>j.km*.88?'end':'middle');
+  const first=j.stops[0], lastS=j.stops[j.stops.length-1];
+  s+=lab(first,false,'start'); s+=lab(lastS,false,'end');
+  if(nx&&nx!==lastS) s+=lab(nx,true,anc(nx)); else if(!nx) s+=lab(lastS,true,'end');
+  s+='<circle cx="'+X(cur)+'" cy="'+y+'" r="7" fill="#f2b25c" stroke="#0b181b" stroke-width="2"/>';
+  return s+'</svg>';
+}
+function renderJourney(){
+  const j=jCur(), m=jMeters(j), nx=jNextStop(j,m), ls=jLastStop(j,m);
+  $('jSeg').innerHTML=JOURNEYS.map(x=>'<button type="button" data-j="'+x.id+'" aria-pressed="'+(x.id===j.id)+'">'+esc(x.name)+'</button>').join('');
+  $('jSeg').querySelectorAll('button').forEach(b=>b.onclick=()=>{ store.prefs.journey=b.dataset.j; save(); renderJourney(); });
+  $('jRoute').innerHTML=routeSvg(j,m);
+  $('jMeta').innerHTML='<span><b>'+kmFmt(m)+'</b> of '+j.km+' km · '+esc(j.sub)+'</span><span>'+(nx?'Next: <b>'+toGo(nx.km*1000-m)+'</b> to '+esc(nx.name):'<b>Complete</b>')+'</span>';
+  const f=nx&&m===0?j.stops[0]:ls; $('jFact').textContent=(m===0?'Starting at ':'Last reached: ')+f.name+'. '+(f.fact||'');
+  if(!nx) $('jFact').innerHTML='You rowed the whole of '+esc(j.name)+'. <button type="button" class="linkbtn" id="jReset">Start it again</button>';
+  const rb=$('jReset'); if(rb) rb.onclick=()=>{ store.journeys[j.id]=0; save(); renderJourney(); };
+}
 function renderHome(){
-  const p=store.prefs;
+  const p=store.prefs; renderJourney();
   $('wks').innerHTML=WORKOUTS.map(w=>{ const b=bestFor(w.id);
     const pb=b?(w.type==='dist'?'Best '+fmtClock(b.t,true):(w.type==='time'?'Best '+fmtM(b.d)+' m':'Longest '+fmtM(b.d)+' m')):'No result yet';
     return '<button type="button" class="wkbtn" data-w="'+w.id+'" aria-pressed="'+(p.wk===w.id)+'"><span class="n">'+w.name+'</span><span class="s">'+w.sub+'</span><span class="pb">'+pb+'</span></button>'; }).join('');
@@ -1188,7 +1248,7 @@ $('bSound').addEventListener('click',()=>{ rainAmbience(rain.visible); if(!sound
 
 function goHome(){
   mode='home'; sess=null; rival=null; autoOn=false; $('bAuto').setAttribute('aria-pressed','false');
-  gh.g.visible=false; fleet.forEach(b=>{b.g.visible=false;}); fleetState=null; hideP10(); finishAt=0; resetWorld(); updateChunks(phys.d);
+  journeyOffset=null; gh.g.visible=false; fleet.forEach(b=>{b.g.visible=false;}); fleetState=null; hideP10(); finishAt=0; resetWorld(); updateChunks(phys.d);
   $('done').hidden=true; $('hud').hidden=true; $('home').hidden=false; renderHome();
 }
 
@@ -1215,6 +1275,8 @@ function renderDone(r){
   $('result').innerHTML=
     '<div class="lbl">'+(r.complete?'Piece complete':'Session ended')+'</div><h2>'+esc(title)+'</h2>'+
     '<div class="verdict">'+[r.rivalVerdict,esc(r.pbLine)].filter(Boolean).join(' ')+(r.saveable?'':' <span style="color:var(--dim)">'+(sess.demo?'Autopilot was on, so this row was not saved.':'Too short to save.')+'</span>')+'</div>'+
+    (sess.jLine?'<div class="jfact">'+esc(sess.jLine.name)+': <b>+'+kmFmt(sess.jLine.after-sess.jLine.before)+' km</b>, now '+kmFmt(sess.jLine.after)+' of '+sess.jLine.km+' km'+
+      (sess.jReached&&sess.jReached.length?'. Reached '+esc(sess.jReached.join(', '))+'.':'.')+(sess.jLine.next?' Next stop: '+esc(sess.jLine.next.name)+' in '+toGo(sess.jLine.next.km*1000-sess.jLine.after)+'.':' Journey complete!')+'</div>':'')+
     (sess.score?'<div class="lbl">Score · <span style="color:var(--amber)">'+fmtM(sess.score)+' points</span></div>':'')+
     '<div class="rk"><div><b>'+fmtSplit(avgSplit)+'</b><span>avg /500 m</span></div><div><b>'+spm.toFixed(1)+'</b><span>avg s/m</span></div><div><b>'+Math.round(2.8*v*v*v)+'</b><span>avg watts</span></div><div><b>'+sess.strokes+'</b><span>strokes</span></div></div>'+
     '<div class="lbl">Splits</div><div class="chart">'+splitChart(sess.splits)+'</div>'+
