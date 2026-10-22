@@ -154,6 +154,32 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .newach .ach{flex-direction:row;text-align:left;gap:10px;background:rgba(242,178,92,.08);border:1px solid rgba(242,178,92,.3);border-radius:12px;padding:8px 12px}
 .btns{display:flex;gap:10px;flex-wrap:wrap}
 .btns>*{flex:1 1 160px}
+.gatechip{margin-top:6px;font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:18px}
+.gatechip.ok{color:var(--good)} .gatechip.no{color:var(--bad)}
+#gatePop{position:fixed;left:50%;top:38%;transform:translate(-50%,0);font-family:var(--num);font-weight:700;font-size:46px;color:var(--good);
+  text-shadow:0 4px 24px rgba(0,0,0,.5);pointer-events:none;opacity:0;white-space:nowrap}
+#gatePop.go{animation:gp 1.2s ease-out both} #gatePop.miss{color:var(--bad);font-size:30px}
+@keyframes gp{0%{opacity:0;transform:translate(-50%,14px) scale(.8)}15%{opacity:1;transform:translate(-50%,0) scale(1.08)}30%{transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-40px)}}
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+.rank{display:flex;align-items:center;gap:14px}
+.lvl{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-family:var(--num);font-weight:700;font-size:26px;flex:none;
+  background:radial-gradient(circle at 35% 30%,#ffd99a,var(--amber) 55%,#b57a2c);color:#3a2408;border:2px solid rgba(255,255,255,.35)}
+.rinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.rinfo b{font-family:var(--num);font-size:24px;font-weight:600;line-height:1}
+.rinfo small{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.liveries{display:flex;gap:8px;flex-wrap:wrap}
+.liv{width:46px;height:46px;border-radius:12px;border:2px solid var(--line);padding:0;position:relative;overflow:hidden}
+.liv[aria-pressed="true"]{border-color:var(--amber);box-shadow:0 0 0 2px rgba(242,178,92,.3)}
+.liv:disabled{filter:grayscale(1) brightness(.5);cursor:not-allowed}
+.liv small{position:absolute;left:0;right:0;bottom:3px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000;text-align:center}
+.chal .ctext{font-family:var(--num);font-size:25px;font-weight:600;line-height:1.1;text-wrap:balance}
+.chal .cmeta{font-size:13px;color:var(--dim);margin-top:6px}
+.cdone{color:var(--good);font-weight:600}
+.xpbox{display:flex;flex-direction:column;gap:8px;background:rgba(242,178,92,.06);border:1px solid rgba(242,178,92,.25);border-radius:12px;padding:12px}
+.xprow{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.xprow b{font-family:var(--num);font-size:24px;color:var(--amber);font-variant-numeric:tabular-nums}
+.xpbox .prog i{transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.lvlup{font-weight:600;color:var(--amber)}
 .jroute svg{display:block;width:100%;height:auto}
 .jmeta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--dim);flex-wrap:wrap}
 .jmeta b{font-family:var(--num);font-size:22px;color:var(--mist);font-weight:600;font-variant-numeric:tabular-nums}
@@ -194,6 +220,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     <div class="panel split">
       <div class="big" id="split">–:––</div>
       <div class="lbl">split / 500 m</div>
+      <div class="gatechip" id="gateChip" hidden></div>
     </div>
     <div class="panel stats">
       <div><b id="dist">0</b><span>meters</span></div>
@@ -218,6 +245,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 </div>
 <div id="hint" hidden>Tap anywhere or press Space on each stroke</div>
 <div id="p10" hidden></div>
+<div id="gatePop" aria-hidden="true"></div>
 <div id="toasts" aria-live="polite"></div>
 <div id="count" hidden></div>
 
@@ -226,6 +254,10 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     <div class="panel card brand">
       <h1>Stillwater Row</h1>
       <p>October on the river. Pick a piece, choose who to race, and row.</p>
+    </div>
+    <div class="panel card sect">
+      <div class="lbl">Today's challenge</div>
+      <div class="chal" id="chal"></div>
     </div>
     <div class="panel card sect">
       <div class="lbl">Piece</div>
@@ -254,6 +286,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
         <button type="button" data-k="sunset">Sunset</button><button type="button" data-k="night">Night lanterns</button><button type="button" data-k="rain">Autumn rain</button>
       </div>
       <div class="opt"><span>Cox voice</span><div class="seg" id="coxSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
+      <div class="opt"><span>Speed gates</span><div class="seg" id="gateSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
       <div class="opt"><span>Rate beat</span><div class="seg" id="beatSeg"><button type="button" data-v="0">Off</button><button type="button" data-v="20">20</button><button type="button" data-v="24">24</button><button type="button" data-v="28">28</button></div></div>
     </div>
     <button class="go" id="bStart" type="button">Sit ready</button>
@@ -265,6 +298,13 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     </div>
   </div>
   <div class="col">
+    <div class="panel card sect">
+      <div class="lbl">Rank</div>
+      <div class="rank"><div class="lvl" id="lvlBadge">1</div>
+        <div class="rinfo"><b id="rankName">Novice</b><div class="prog"><i id="xpFill"></i></div><small id="xpTxt"></small></div></div>
+      <div class="lbl">Your boat · <span id="livName" style="color:var(--mist)"></span></div>
+      <div class="liveries" id="liveries"></div>
+    </div>
     <div class="panel card sect" id="journeyCard">
       <div class="lbl">Journey</div>
       <div class="seg" id="jSeg"></div>
@@ -303,6 +343,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
   <div class="panel result" id="result"></div>
 </section>
 
+<canvas id="confetti" aria-hidden="true"></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function(){
@@ -322,7 +363,8 @@ const KEY='stillwater.v1';
 function loadStore(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.v===1) return s; }catch(e){}
   return {v:1,sessions:[],lifetime:0,unlocked:{},days:[],prefs:{wk:'2k',rival:'best',pace:130}}; }
 const store=loadStore();
-store.prefs=Object.assign({wk:'2k',rival:'best',pace:130,cond:'auto',cox:true,beat:0,journey:'gota'},store.prefs||{});
+store.prefs=Object.assign({wk:'2k',rival:'best',pace:130,cond:'auto',cox:true,beat:0,journey:'gota',gates:true,livery:'stillwater'},store.prefs||{});
+store.xp=store.xp||0; store.chal=store.chal||{};
 store.journeys=store.journeys||{};
 function save(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} }
 
@@ -348,8 +390,22 @@ const ACH=[
   {id:'life42', code:'42K', name:'River marathon', desc:'42,195 m in total'},
   {id:'fleet1', code:'1st', name:'Head of the river', desc:'Win a fleet race'},
   {id:'voyage', code:'J', name:'Voyager', desc:'Complete a whole journey'},
+  {id:'combo5', code:'×5', name:'Five in a row', desc:'Hit 5 speed gates in a row'},
   {id:'p10', code:'P10', name:'Power ten', desc:'Find 8% extra speed in a Power 10'},
 ];
+const LEVEL_XP=L=>250*L*(L-1);
+function levelOf(xp){ let L=1; while(xp>=LEVEL_XP(L+1)) L++; return L; }
+const RANKS=[[1,'Novice'],[3,'Club rower'],[5,'Stroke seat'],[8,'Captain'],[12,'Regatta finalist'],[16,'Olympian']];
+function rankOf(L){ let r=RANKS[0][1]; for(const [l,n] of RANKS) if(L>=l) r=n; return r; }
+const LIVERIES=[
+  {id:'stillwater',name:'Stillwater',lvl:1,hull:0xf2efe6,shirt:0xe39a3b,blade:0xe8743a},
+  {id:'midnight',name:'Midnight',lvl:2,hull:0x1d2a44,shirt:0xeef2f5,blade:0x8fe1ee},
+  {id:'blueyellow',name:'Blue and yellow',lvl:3,hull:0x1f5fa8,shirt:0xf6c843,blade:0xf6c843},
+  {id:'green',name:'Racing green',lvl:5,hull:0x2f5d3a,shirt:0xf1ead8,blade:0xc9a227},
+  {id:'royal',name:'Royal',lvl:8,hull:0x4b2f6e,shirt:0xf2d48a,blade:0xf2d48a},
+  {id:'gold',name:'Gold hull',lvl:12,hull:0xd9a63c,shirt:0x1c1c1c,blade:0x1c1c1c},
+  {id:'aurora',name:'Aurora',lvl:16,hull:0x12343b,shirt:0x5ff0c8,blade:0xe85dbf}];
+function hashStr(t){ let h=2166136261; for(let i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
 const DIST_ACH=[[100,'d100'],[500,'d500'],[1000,'d1k'],[2000,'d2k'],[5000,'d5k'],[10000,'d10k']];
 const GATES=[500,1000,2000,5000,10000];
 
@@ -646,11 +702,79 @@ function makeBoat(ghost,col){
     g.add(yaw); return {yaw,pitch,tip,s};
   });
   scene.add(g);
-  return {g,body,lean,oars,a:{drive:false,p:1,rec:1.6}};
+  return {g,body,lean,oars,M,a:{drive:false,p:1,rec:1.6}};
 }
 const me=makeBoat(false), gh=makeBoat(true); gh.g.visible=false;
 const boatLamp=new THREE.Sprite(glowMat); boatLamp.scale.set(1.3,1.3,1); boatLamp.position.set(0,.55,3.9); boatLamp.visible=false; me.g.add(boatLamp);
 scene.add(rain); scene.add(birds);
+function applyLivery(){ let l=LIVERIES.find(x=>x.id===store.prefs.livery)||LIVERIES[0]; if(levelOf(store.xp)<l.lvl) l=LIVERIES[0];
+  me.M.hull.color.setHex(l.hull); me.M.shirt.color.setHex(l.shirt); me.M.blade.color.setHex(l.blade); }
+
+/* ================= speed gates ================= */
+const GG={pole:new THREE.CylinderGeometry(.16,.2,1,8).translate(0,.5,0),arm:new THREE.BoxGeometry(1,.18,.18),line:new THREE.PlaneGeometry(1,1).rotateX(-Math.PI/2)};
+const gatePoleMat=new THREE.MeshLambertMaterial({color:0xece8df}), GATE_WIN=100;
+let gates=[];
+function gateColor(g){ return g.res==='hit'?0x86d9a6:g.res==='miss'?0xf29a84:(g.gold?0xf2b25c:(g.live?0x8fe1ee:0xe7eff0)); }
+function drawGateLabel(g){
+  const x=g.cv.getContext('2d'); x.clearRect(0,0,512,128);
+  const st=g.res||(g.live?'live':'wait');
+  x.fillStyle='#'+gateColor(g).toString(16).padStart(6,'0');
+  x.beginPath(); x.moveTo(60,6); x.lineTo(452,6); x.arc(452,64,58,-Math.PI/2,Math.PI/2); x.lineTo(60,122); x.arc(60,64,58,Math.PI/2,-Math.PI/2); x.fill();
+  const txt=st==='hit'?'+'+g.pts:st==='miss'?'MISS':st==='live'?(g.gold?'GOLD · ':'BEAT ')+fmtClock(g.target):(g.gold?'GOLD GATE':'SPEED GATE');
+  x.fillStyle='#0b181b'; x.font='700 62px "Saira Condensed","Arial Narrow",sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillText(txt,256,68);
+  g.tex.needsUpdate=true;
+}
+function paintGate(g){ if(!g.obj) return; g.mat.color.setHex(gateColor(g)); g.lineMat.color.setHex(gateColor(g)); drawGateLabel(g); }
+function makeGateObj(g){
+  const o=new THREE.Group(), poleX=-(W/2+.6)-LANE_ME, armL=3-poleX;
+  const pole=new THREE.Mesh(GG.pole,gatePoleMat); pole.scale.set(1,6,1); pole.position.set(poleX,-.5,0); o.add(pole);
+  g.mat=new THREE.MeshBasicMaterial({color:gateColor(g)});
+  g.lineMat=new THREE.MeshBasicMaterial({color:gateColor(g),transparent:true,opacity:.5,depthWrite:false});
+  const arm=new THREE.Mesh(GG.arm,g.mat); arm.scale.set(armL,1,1); arm.position.set(poleX+armL/2,5.2,0); o.add(arm);
+  const line=new THREE.Mesh(GG.line,g.lineMat); line.scale.set(5.2,1,.45); line.position.y=.05; o.add(line);
+  g.cv=document.createElement('canvas'); g.cv.width=512; g.cv.height=128; g.tex=new THREE.CanvasTexture(g.cv);
+  g.spr=new THREE.Sprite(new THREE.SpriteMaterial({map:g.tex,transparent:true,depthWrite:false})); g.spr.scale.set(3.6,.9,1); g.spr.position.set(0,5.95,0); o.add(g.spr);
+  drawGateLabel(g);
+  o.position.set(cx(g.d)+LANE_ME,0,-g.d); o.rotation.y=-Math.atan(dcx(g.d));
+  scene.add(o); g.obj=o;
+}
+function disposeGate(g){ scene.remove(g.obj); g.mat.dispose(); g.lineMat.dispose(); g.tex.dispose(); g.spr.material.dispose(); g.obj=null; }
+function clearGates(){ gates.forEach(g=>{ if(g.obj) disposeGate(g); }); gates=[]; }
+function buildGates(w){ clearGates(); if(!store.prefs.gates) return; let i=0;
+  for(let d=300; d<60000; d+=400, i++){ if(w.type==='dist'&&d>w.target-150) break; gates.push({d,gold:i%4===3,live:false,res:null,obj:null,pop:0}); } }
+function startGate(g){
+  g.live=true; g.t0=sess.t; g.d0=phys.d;
+  const est=sess.t>40&&sess.vEma>.6?500/sess.vEma:0, base=est||recentSplit()||150;
+  g.target=clamp(Math.round(base-(g.gold?6:2)),85,300); sess.g.live=g; paintGate(g);
+  if(g.gold) say('Gold gate! '+saySplit(g.target)+' or better.',true);
+  else if(sess.g.n===0) say('Speed gate. Beat '+saySplit(g.target)+' to the line.',false);
+}
+function resolveGate(g){
+  const tt=sess.t-g.t0, dd=phys.d-g.d0, sp=dd>1?500*tt/dd:999;
+  g.live=false; sess.g.live=null; sess.g.n++;
+  if(sp<=g.target+.05){ g.res='hit'; sess.g.hit++; sess.g.combo++; sess.g.best=Math.max(sess.g.best,sess.g.combo);
+    const mult=Math.min(sess.g.combo,5); g.pts=(g.gold?100:40)*mult; addScore(g.pts,null);
+    gatePop('+'+g.pts+(mult>1?'  ×'+mult:''),true); ding(g.gold);
+    if(sess.g.combo>=5) unlock('combo5');
+    if(sess.g.combo>=3) say(sess.g.combo+' in a row!',false); else if(g.gold) say('Gold!',false);
+  } else { g.res='miss'; sess.g.combo=0; g.pts=0; gatePop('Missed · '+fmtSplit(sp),false); thud(); }
+  g.pop=1; paintGate(g); if(g.obj) g.lineMat.opacity=.6;
+}
+function updateGates(dt){
+  for(const g of gates){
+    const ahead=g.d-phys.d;
+    if(!g.obj&&ahead<650&&ahead>-30) makeGateObj(g);
+    else if(g.obj&&ahead<-35) disposeGate(g);
+    if(!g.obj&&ahead>=650) break;
+    if(mode==='rowing'&&sess&&sess.started&&!g.res){
+      if(!g.live&&ahead<=GATE_WIN) startGate(g);
+      if(g.live&&ahead<=0) resolveGate(g);
+    }
+    if(g.obj){ if(g.live) g.lineMat.opacity=.45+.3*Math.sin(simT*6);
+      if(g.pop>0){ g.pop=Math.max(0,g.pop-dt*1.8); const k=1+.5*Math.sin(g.pop*Math.PI); g.spr.scale.set(3.6*k,.9*k,1); } }
+  }
+}
+function gatePop(text,ok){ const el=$('gatePop'); el.textContent=text; el.className=''; void el.offsetWidth; el.className=ok?'go':'go miss'; }
 function applyCond(key){
   cond=key; const c=CONDS[key];
   FOG.setHex(c.fog); scene.fog.color.setHex(c.fog); scene.fog.near=c.near; scene.fog.far=c.far;
@@ -724,6 +848,34 @@ function rainAmbience(on){ try{ if(!ac) return; if(rainNode){ rainNode.g.gain.se
   const g=ac.createGain(); g.gain.value=0; s.connect(f).connect(g).connect(ac.destination); s.start(); rainNode={s,g}; g.gain.setTargetAtTime(soundOn?.05:0,ac.currentTime,.6); }catch(e){} }
 function tick(){ if(!ac||!soundOn) return; try{ const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain(); o.type='triangle'; o.frequency.value=1250;
   g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(.09,t+.005); g.gain.exponentialRampToValueAtTime(.0001,t+.07); o.connect(g).connect(ac.destination); o.start(t); o.stop(t+.08); }catch(e){} }
+function ding(gold){ if(!ac||!soundOn) return; try{ const t=ac.currentTime; (gold?[880,1175,1568]:[1046,1568]).forEach((fq,i)=>{ const o=ac.createOscillator(), g=ac.createGain(), st=t+i*.07;
+  o.type='sine'; o.frequency.value=fq; g.gain.setValueAtTime(0,st); g.gain.linearRampToValueAtTime(.11,st+.01); g.gain.exponentialRampToValueAtTime(.001,st+.5);
+  o.connect(g).connect(ac.destination); o.start(st); o.stop(st+.55); }); }catch(e){} }
+function thud(){ if(!ac||!soundOn) return; try{ const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain(); o.type='sine';
+  o.frequency.setValueAtTime(220,t); o.frequency.exponentialRampToValueAtTime(90,t+.25); g.gain.setValueAtTime(.16,t); g.gain.exponentialRampToValueAtTime(.001,t+.3);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t+.32); }catch(e){} }
+let applauseBuf=null;
+function applause(){ if(!ac||!soundOn) return; try{
+  if(!applauseBuf){ const sr=ac.sampleRate, n=Math.floor(sr*3.6); applauseBuf=ac.createBuffer(1,n,sr); const ch=applauseBuf.getChannelData(0);
+    for(let k=0;k<1100;k++){ const s0=Math.floor(Math.pow(Math.random(),1.3)*3.2*sr), len=Math.floor(sr*(.006+Math.random()*.01)), a=.15+Math.random()*.35;
+      for(let i=0;i<len&&s0+i<n;i++) ch[s0+i]+=(Math.random()*2-1)*a*Math.exp(-i/(len*.3)); }
+    for(let i=0;i<n;i++){ const t=i/sr; ch[i]*=Math.min(1,t/.25)*(t>2?Math.max(0,1-(t-2)/1.6):1); } }
+  const s=ac.createBufferSource(); s.buffer=applauseBuf; const f=ac.createBiquadFilter(); f.type='bandpass'; f.frequency.value=2000; f.Q.value=.5;
+  const g=ac.createGain(); g.gain.value=.5; s.connect(f).connect(g).connect(ac.destination); s.start(); }catch(e){} }
+const cfv=$('confetti'), cfx=cfv.getContext('2d'); let cParts=[], cLast=0, cOn=false;
+const CCOL=['#f2b25c','#8fe1ee','#86d9a6','#f29a84','#e7eff0','#e8743a'];
+function confetti(n){ try{ if(matchMedia('(prefers-reduced-motion: reduce)').matches) return; }catch(e){}
+  const dpr=Math.min(devicePixelRatio||1,2); cfv.width=Math.round(innerWidth*dpr); cfv.height=Math.round(innerHeight*dpr);
+  for(let i=0;i<n;i++) cParts.push({x:Math.random()*innerWidth,y:-20-Math.random()*innerHeight*.4,vx:(Math.random()-.5)*160,vy:60+Math.random()*180,
+    r:Math.random()*6,vr:(Math.random()-.5)*10,w:6+Math.random()*7,h:3+Math.random()*4,c:CCOL[i%CCOL.length],ph:Math.random()*6});
+  if(!cOn){ cOn=true; cLast=performance.now(); requestAnimationFrame(cStep); } }
+function cStep(now){ const dt=Math.min(.05,(now-cLast)/1000); cLast=now; const dpr=cfv.width/innerWidth;
+  cfx.setTransform(dpr,0,0,dpr,0,0); cfx.clearRect(0,0,innerWidth,innerHeight);
+  cParts=cParts.filter(p=>p.y<innerHeight+30);
+  for(const p of cParts){ p.vy+=40*dt; p.x+=(p.vx+Math.sin(now/300+p.ph)*30)*dt; p.y+=p.vy*dt; p.r+=p.vr*dt;
+    cfx.save(); cfx.translate(p.x,p.y); cfx.rotate(p.r); cfx.scale(1,Math.cos(now/180+p.ph)); cfx.fillStyle=p.c; cfx.fillRect(-p.w/2,-p.h/2,p.w,p.h); cfx.restore(); }
+  if(cParts.length) requestAnimationFrame(cStep); else { cfx.clearRect(0,0,innerWidth,innerHeight); cOn=false; } }
+function celebrate(big){ confetti(big?220:90); if(big) applause(); }
 function chime(){ if(!ac||!soundOn) return; try{ const t=ac.currentTime; [660,990].forEach((fq,i)=>{ const o=ac.createOscillator(), g=ac.createGain();
   o.type='sine'; o.frequency.value=fq; g.gain.setValueAtTime(0,t+i*.12); g.gain.linearRampToValueAtTime(.12,t+i*.12+.02); g.gain.exponentialRampToValueAtTime(.001,t+i*.12+.9);
   o.connect(g).connect(ac.destination); o.start(t+i*.12); o.stop(t+i*.12+1); }); }catch(e){} }
@@ -740,6 +892,35 @@ function say(text,pri){
 }
 const saySplit=s=>{ const m=Math.floor(s/60), r=Math.round(s-m*60); return r>=60?(m+1)+' flat':m+' '+(r===0?'flat':(r<10?'oh '+r:r)); };
 const sayDist=m=>m>=1000?(m%1000===0?(m/1000)+' k':(m/1000).toFixed(1)+' k'):m+' metres';
+
+/* ================= daily challenge ================= */
+function todayChallenge(){
+  const h=hashStr(dayKey(new Date())+'stillwater'), start=new Date(); start.setHours(0,0,0,0);
+  const prev=store.sessions.filter(x=>!x.demo&&x.d>=300&&x.at<start.getTime()).slice(-3);
+  const B=prev.length?Math.round(prev.reduce((a,x)=>a+x.t/(x.d/500),0)/prev.length):150;
+  const T=[
+    ()=>{ const n=[1500,2000,2500,3000][(h>>4)&3]; return {text:'Row '+fmtM(n)+' m in one session',check:s=>s.d>=n}; },
+    ()=>{ const n=4+((h>>6)%3); return {text:'Clear '+n+' speed gates in one session',check:s=>s.gatesHit>=n,needGates:1}; },
+    ()=>({text:'Hit 3 speed gates in a row',check:s=>s.bestCombo>=3,needGates:1}),
+    ()=>{ const X=Math.max(90,B-4); return {text:'Row a 500 m split under '+fmtClock(X),check:s=>s.splits.some(v=>v<=X)}; },
+    ()=>({text:'Find 5% extra speed in a Power 10',check:s=>s.p10best>=.05}),
+    ()=>{ const n=[10,12,15][(h>>8)%3]; return {text:'Row for '+n+' minutes in one session',check:s=>s.t>=n*60}; },
+    ()=>({text:'Finish in the top 3 of a fleet race',check:(s,fin)=>!!fin&&s.fleetPos<=3,needFleet:1})];
+  return T[h%T.length]();
+}
+function chalDoneToday(){ return !!store.chal[dayKey(new Date())]; }
+function checkChallenge(fin){
+  if(!sess||sess.demo||sess.chalDone||!sess.started||chalDoneToday()) return;
+  const c=sess.chal, snap={d:phys.d,t:sess.t,gatesHit:sess.g.hit,bestCombo:sess.g.best,splits:sess.splits,p10best:sess.p10best||0,fleetPos:sess.fleetPos||99};
+  if(c.check(snap,fin)){ store.chal[dayKey(new Date())]=1; save(); sess.chalDone=true; addScore(300,null);
+    toast('Daily challenge complete',c.text+' · +300','★'); chime(); say('Daily challenge complete!',true); celebrate(false); }
+}
+function renderChallenge(){
+  const c=todayChallenge(), done=chalDoneToday(), total=Object.keys(store.chal).length;
+  $('chal').innerHTML='<div class="ctext">'+esc(c.text)+'</div><div class="cmeta">'+(done?'<span class="cdone">Done today ✓</span>':'+300 points')+
+    (c.needGates&&!store.prefs.gates?' · turn speed gates on':'')+(c.needFleet&&store.prefs.rival!=='fleet'?' · choose Race the fleet':'')+
+    (total?' · '+total+' completed so far':'')+'</div>';
+}
 
 /* ================= state ================= */
 let mode='home';             // home | countdown | rowing | paused | done
@@ -824,7 +1005,8 @@ function startSession(){
   rival=resolveRival();
   sess={wk:w.id,t:0,started:false,demo:autoOn,strokes:0,samples:[0],splits:[],next500:500,sub2:0,rateRun:0,
         newAch:[],nextDistAch:0,gapSign:0,complete:false,score:0,lastCall:{},vEma:0,stopCalled:false,
-        p10:{phase:'idle',next:75+Math.random()*45,wait:0,left:0,vs:0,ts:0,base:0},beatNext:0};
+        p10:{phase:'idle',next:75+Math.random()*45,wait:0,left:0,vs:0,ts:0,base:0},beatNext:0,g:{n:0,hit:0,combo:0,best:0,live:null}};
+  sess.chal=todayChallenge(); buildGates(w);
   const jj=jCur(); journeyOffset=jMeters(jj)<jj.km*1000?jMeters(jj):null; sess.jNext=journeyOffset===null?null:jNextStop(jj,journeyOffset);
   const ck=store.prefs.cond==='auto'?autoCond():store.prefs.cond; if(ck!==cond) applyCond(ck);
   finishAt=w.type==='dist'?w.target:0;
@@ -877,9 +1059,11 @@ function finish(complete){
     rivalVerdict=pos===1?'You <b>won the fleet race</b>. Head of the river.':(pos<=3?'You finished <b>'+ord+' of 7</b>.':'<b class="bad">'+ord+' of 7</b> this time.');
     if(t>60) addScore([0,300,200,100][pos]||0,null);
     if(pos===1&&t>60) unlock('fleet1');
+    sess.fleetPos=pos;
   } else if(/You beat|ahead<\/b> of/.test(rivalVerdict)) addScore(150,null);
   if(complete) addScore(100,null);
   say(complete?'Easy oar. Well rowed.':'Easy oar.',true); hideP10();
+  checkChallenge(true);
   const saveable=!sess.demo&&t>10&&d>50;
   let pbLine='';
   if(saveable){
@@ -898,11 +1082,18 @@ function finish(complete){
     if(journeyOffset!==null){ const j=jCur(), before=jMeters(j); store.journeys[j.id]=Math.min(j.km*1000,before+rec.d);
       sess.jLine={name:j.name,before,after:jMeters(j),km:j.km,next:jNextStop(j,jMeters(j))};
       if(jMeters(j)>=j.km*1000) unlock('voyage'); }
+    const xp0=store.xp||0, gain=sess.score+Math.round(rec.d/10); store.xp=xp0+gain;
+    const L0=levelOf(xp0), L1=levelOf(store.xp);
+    sess.xp={gain,before:xp0,after:store.xp,L0,L1,newLiv:LIVERIES.filter(l=>l.lvl>L0&&l.lvl<=L1)};
     save();
   }
   journeyOffset=null;
   renderDone({w,t,d,complete,rivalVerdict,pbLine,saveable});
   $('done').hidden=false; releaseWake();
+  setTimeout(()=>{ const i=$('xpDone'); if(i) i.style.width=i.dataset.w+'%'; },80);
+  const lvUp=sess.xp&&sess.xp.L1>sess.xp.L0;
+  if(complete||lvUp||pbLine.indexOf('New personal')===0||/won the fleet|You beat/.test(rivalVerdict)) celebrate(true);
+  if(lvUp) setTimeout(()=>say('Level up! Level '+sess.xp.L1+'. '+rankOf(sess.xp.L1)+'.',false),1900);
 }
 function rivalName(cap){ if(!rival) return ''; if(rival.kind==='fleet') return cap?'The fleet':'the fleet'; const n=rival.kind==='pace'?'the pace boat':(store.prefs.rival==='best'?'your best':'your last session'); return cap?n[0].toUpperCase()+n.slice(1):n; }
 function streak(){ const set=new Set(store.days); let n=0; const d=new Date(); if(!set.has(dayKey(d))) d.setDate(d.getDate()-1);
@@ -932,7 +1123,7 @@ function p10Hud(){ const P=sess&&sess.p10, el=$('p10'); if(!P||P.phase==='idle')
   el.hidden=false; el.className=P.phase==='call'?'call':''; el.textContent=P.phase==='call'?'Power 10 · next stroke':'Power 10 · '+P.left; }
 function hideP10(){ $('p10').hidden=true; }
 function startPower10(){ const P=sess.p10; P.phase='call'; P.wait=1; P.base=Math.max(sess.vEma,.5); say('Power ten. On the next one.',true); p10Hud(); }
-function endPower10(){ const P=sess.p10, avg=P.ts>0?P.vs/P.ts:0, imp=avg/P.base-1;
+function endPower10(){ const P=sess.p10, avg=P.ts>0?P.vs/P.ts:0, imp=avg/P.base-1; sess.p10best=Math.max(sess.p10best||0,imp);
   P.phase='idle'; P.next=sess.t+90+Math.random()*60; p10Hud();
   if(imp>.03){ const pts=Math.min(250,50+Math.round(imp*1000)); addScore(pts,'Power 10 · +'+Math.round(imp*100)+'% speed'); say('Good ten! Plus '+Math.round(imp*100)+' percent. Settle.',true); if(imp>=.08) unlock('p10'); }
   else { toast('Power 10 done','Settle into your rhythm'); say('Settle. Find your rhythm.',true); } }
@@ -972,6 +1163,12 @@ function updateHud(force){
   $('watts').textContent=Math.round(ftms.on&&ftms.power>0?ftms.power:2.8*v*v*v);
   let p=0; if(w.type==='dist') p=phys.d/w.target; else if(w.type==='time') p=sess.t/w.target; else p=(phys.d%500)/500;
   $('progFill').style.width=clamp(p*100,0,100)+'%';
+  const chip=$('gateChip');
+  if(gates.length){ chip.hidden=false; const L=sess.g.live;
+    if(L){ const tt=sess.t-L.t0, dd=phys.d-L.d0, cur=dd>3?500*tt/dd:Infinity; chip.className='gatechip '+(cur<=L.target?'ok':'no'); chip.textContent='Beat '+fmtClock(L.target)+' · now '+fmtSplit(cur); }
+    else { chip.className='gatechip'; const nx=gates.find(g=>!g.res&&g.d>phys.d);
+      chip.textContent='Gates '+sess.g.hit+'/'+sess.g.n+(sess.g.combo>1?' · ×'+Math.min(sess.g.combo,5)+' combo':(nx?' · next in '+fmtM(nx.d-phys.d)+' m':'')); } }
+  else chip.hidden=true;
   $('progTxt').textContent=progText();
   if(rival&&rival.kind==='fleet'&&fleetState){
     const fp=fleetPos(), el=$('gap'), gap=fp.next?-fp.nd:(fp.behind?fp.bd:0);
@@ -1045,6 +1242,7 @@ function frame(now){
     if(sess.jNext&&journeyOffset!==null&&journeyOffset+phys.d>=sess.jNext.km*1000){ const st=sess.jNext, j=jCur();
       toast('Reached '+st.name,st.fact||j.name); say('You have reached '+st.name+'.',true); addScore(75,null); chime();
       sess.jReached=(sess.jReached||[]).concat(st.name); sess.jNext=jNextStop(j,st.km*1000); }
+    checkChallenge(false);
     coxTick(w);
     if(w.type==='dist'&&phys.d>=w.target) finish(true);
     else if(w.type==='time'&&sess.t>=w.target) finish(true);
@@ -1063,7 +1261,7 @@ function frame(now){
       if(sess.started&&mode==='rowing'&&simT>=st.next&&fleetD(i,ft)<(finishAt||1e9)){ const per=60/st.spm; st.next=simT+per; boatStroke(b,per-DRIVE); }
       animBoat(b,dt,false); }); }
   updateRipples(dt);
-  updateChunks(phys.d); updateCritters(); updateRain(dt); updateBirds(dt);
+  updateChunks(phys.d); updateCritters(); updateRain(dt); updateBirds(dt); updateGates(dt);
 
   // camera
   const yaw=me.g.rotation.y, fx=-Math.sin(yaw), fz=-Math.cos(yaw), rx=Math.cos(yaw), rz=-Math.sin(yaw), bp=me.g.position;
@@ -1220,8 +1418,18 @@ function renderJourney(){
   if(!nx) $('jFact').innerHTML='You rowed the whole of '+esc(j.name)+'. <button type="button" class="linkbtn" id="jReset">Start it again</button>';
   const rb=$('jReset'); if(rb) rb.onclick=()=>{ store.journeys[j.id]=0; save(); renderJourney(); };
 }
+function renderRank(){
+  const xp=store.xp||0, L=levelOf(xp), a=LEVEL_XP(L), b=LEVEL_XP(L+1), hx=n=>'#'+n.toString(16).padStart(6,'0');
+  $('lvlBadge').textContent=L; $('rankName').textContent=rankOf(L); $('xpFill').style.width=clamp((xp-a)/(b-a)*100,0,100)+'%';
+  $('xpTxt').textContent=fmtM(xp-a)+' / '+fmtM(b-a)+' XP to level '+(L+1);
+  $('liveries').innerHTML=LIVERIES.map(l=>{ const lock=L<l.lvl;
+    return '<button type="button" class="liv" data-l="'+l.id+'" aria-pressed="'+(store.prefs.livery===l.id&&!lock)+'"'+(lock?' disabled':'')+' title="'+esc(l.name)+(lock?' · unlocks at level '+l.lvl:'')+'" aria-label="'+esc(l.name)+(lock?', unlocks at level '+l.lvl:'')+'" style="background:linear-gradient(135deg,'+hx(l.hull)+' 0 52%,'+hx(l.shirt)+' 52% 76%,'+hx(l.blade)+' 76%)">'+(lock?'<small>L'+l.lvl+'</small>':'')+'</button>'; }).join('');
+  $('liveries').querySelectorAll('button:not([disabled])').forEach(bt=>bt.onclick=()=>{ store.prefs.livery=bt.dataset.l; save(); applyLivery(); renderRank(); });
+  let cur=LIVERIES.find(l=>l.id===store.prefs.livery)||LIVERIES[0]; if(L<cur.lvl) cur=LIVERIES[0]; $('livName').textContent=cur.name;
+}
 function renderHome(){
-  const p=store.prefs; renderJourney();
+  const p=store.prefs; renderJourney(); renderRank(); renderChallenge();
+  $('gateSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.gates)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.gates=b.dataset.v==='1'; save(); renderHome(); }; });
   $('wks').innerHTML=WORKOUTS.map(w=>{ const b=bestFor(w.id);
     const pb=b?(w.type==='dist'?'Best '+fmtClock(b.t,true):(w.type==='time'?'Best '+fmtM(b.d)+' m':'Longest '+fmtM(b.d)+' m')):'No result yet';
     return '<button type="button" class="wkbtn" data-w="'+w.id+'" aria-pressed="'+(p.wk===w.id)+'"><span class="n">'+w.name+'</span><span class="s">'+w.sub+'</span><span class="pb">'+pb+'</span></button>'; }).join('');
@@ -1248,7 +1456,7 @@ $('bSound').addEventListener('click',()=>{ rainAmbience(rain.visible); if(!sound
 
 function goHome(){
   mode='home'; sess=null; rival=null; autoOn=false; $('bAuto').setAttribute('aria-pressed','false');
-  journeyOffset=null; gh.g.visible=false; fleet.forEach(b=>{b.g.visible=false;}); fleetState=null; hideP10(); finishAt=0; resetWorld(); updateChunks(phys.d);
+  journeyOffset=null; clearGates(); gh.g.visible=false; fleet.forEach(b=>{b.g.visible=false;}); fleetState=null; hideP10(); finishAt=0; resetWorld(); updateChunks(phys.d);
   $('done').hidden=true; $('hud').hidden=true; $('home').hidden=false; renderHome();
 }
 
@@ -1268,6 +1476,9 @@ function splitChart(splits){
     s+='<text x="'+(x+w/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="#9db3b7" font-family="Saira Condensed, sans-serif">'+kmText((i+1)*500)+'</text>'; });
   return s+'</svg>';
 }
+function xpHtml(){ const x=sess.xp; if(!x) return ''; const L=x.L1, a=LEVEL_XP(L), b=LEVEL_XP(L+1), pct=clamp((x.after-a)/(b-a)*100,0,100);
+  return '<div class="xpbox"><div class="xprow"><span class="lbl">Level '+L+' · '+esc(rankOf(L))+'</span><b>+'+fmtM(x.gain)+' XP</b></div><div class="prog"><i id="xpDone" data-w="'+pct.toFixed(1)+'"></i></div>'+
+    (x.L1>x.L0?'<div class="lvlup">Level up! You reached level '+L+'.'+(x.newLiv.length?' New boat colours: '+esc(x.newLiv.map(l=>l.name).join(', '))+'.':'')+'</div>':'')+'</div>'; }
 function renderDone(r){
   const avgSplit=r.d>0?r.t/(r.d/500):Infinity, spm=r.t>0?sess.strokes/(r.t/60):0, v=r.t>0?r.d/r.t:0;
   const title=r.w.type==='dist'&&r.complete?r.w.name+' in '+fmtClock(r.t,true):(r.w.type==='time'&&r.complete?fmtM(r.d)+' m in '+r.w.name:fmtM(r.d)+' m in '+fmtClock(r.t));
@@ -1275,9 +1486,11 @@ function renderDone(r){
   $('result').innerHTML=
     '<div class="lbl">'+(r.complete?'Piece complete':'Session ended')+'</div><h2>'+esc(title)+'</h2>'+
     '<div class="verdict">'+[r.rivalVerdict,esc(r.pbLine)].filter(Boolean).join(' ')+(r.saveable?'':' <span style="color:var(--dim)">'+(sess.demo?'Autopilot was on, so this row was not saved.':'Too short to save.')+'</span>')+'</div>'+
+    xpHtml()+
+    (sess.chalDone?'<div class="jfact">Daily challenge complete: '+esc(sess.chal.text)+'. +300 points.</div>':'')+
     (sess.jLine?'<div class="jfact">'+esc(sess.jLine.name)+': <b>+'+kmFmt(sess.jLine.after-sess.jLine.before)+' km</b>, now '+kmFmt(sess.jLine.after)+' of '+sess.jLine.km+' km'+
       (sess.jReached&&sess.jReached.length?'. Reached '+esc(sess.jReached.join(', '))+'.':'.')+(sess.jLine.next?' Next stop: '+esc(sess.jLine.next.name)+' in '+toGo(sess.jLine.next.km*1000-sess.jLine.after)+'.':' Journey complete!')+'</div>':'')+
-    (sess.score?'<div class="lbl">Score · <span style="color:var(--amber)">'+fmtM(sess.score)+' points</span></div>':'')+
+    (sess.score||sess.g.n?'<div class="lbl">Score · <span style="color:var(--amber)">'+fmtM(sess.score)+' points</span>'+(sess.g.n?' · gates '+sess.g.hit+' of '+sess.g.n+(sess.g.best>1?', best combo '+sess.g.best:''):'')+'</div>':'')+
     '<div class="rk"><div><b>'+fmtSplit(avgSplit)+'</b><span>avg /500 m</span></div><div><b>'+spm.toFixed(1)+'</b><span>avg s/m</span></div><div><b>'+Math.round(2.8*v*v*v)+'</b><span>avg watts</span></div><div><b>'+sess.strokes+'</b><span>strokes</span></div></div>'+
     '<div class="lbl">Splits</div><div class="chart">'+splitChart(sess.splits)+'</div>'+
     (newA.length?'<div class="lbl">Milestones unlocked</div><div class="newach">'+newA.map(a=>'<div class="ach on"><div class="medal">'+a.code+'</div><div><div style="font-weight:600">'+a.name+'</div><small>'+a.desc+'</small></div></div>').join('')+'</div>':'')+
@@ -1288,6 +1501,7 @@ function renderDone(r){
 
 /* ================= boot ================= */
 applyCond(store.prefs.cond==='auto'?autoCond():store.prefs.cond);
+applyLivery();
 renderHome();
 const fontsReady=(document.fonts&&document.fonts.ready)?Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))]):Promise.resolve();
 fontsReady.then(()=>{ worldReady=true; updateChunks(phys.d); });
