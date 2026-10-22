@@ -578,6 +578,9 @@ function resolveRival(){
   if(p.rival==='best'){ s=bestFor(w.id); label='Your best'; }
   else if(p.rival==='last'){ s=lastFor(w.id); label='Last session'; }
   if(s) return {kind:'session',s,label:label+' · '+(w.type==='dist'?fmtClock(s.t,true):fmtM(s.d)+' m'),short:p.rival==='best'?'BEST':'LAST',spm:s.spm||24};
+  const recent=store.sessions.filter(x=>!x.demo&&x.d>=300).slice(-3);
+  const auto=p.rival!=='pace'&&recent.length?Math.round(recent.reduce((a,x)=>a+x.t/(x.d/500),0)/recent.length):0;
+  if(auto) return {kind:'pace',split:auto,label:'Pace boat · your recent '+fmtClock(auto)+' /500 m',short:'PACE '+fmtClock(auto),spm:24,fallback:true};
   return {kind:'pace',split:p.pace,label:'Pace boat · '+fmtClock(p.pace)+' /500 m',short:'PACE '+fmtClock(p.pace),spm:24,fallback:p.rival!=='pace'};
 }
 function rivalD(t){
@@ -745,10 +748,13 @@ function frame(now){
   // physics
   if(mode==='rowing'&&ftms.on&&sess){
     const devD=Math.max(0,ftms.dist-ftms.dist0), dv=ftms.pace>0?500/ftms.pace:ftms.derivedV;
-    if(simT-lastStrokeAt>6&&ftms.kind==='fitshow') ftms.derivedV*=Math.pow(.6,dt);
-    phys.v=lerp(phys.v,dv,Math.min(1,dt*2));
+    // While strokes keep coming the console sets the speed; once they stop the boat glides on water drag.
+    const rowingNow=sess&&sess.started&&simT-lastStrokeAt<Math.max(3,1.6*(60/Math.max(ftms.spm||20,12)));
+    if(rowingNow) phys.v=lerp(phys.v,dv,Math.min(1,dt*2));
+    else phys.v=Math.max(0,phys.v-DRAG*phys.v*phys.v*dt-.025*dt);
     const surge=me.a.drive?1.14:(me.a.p<.5?.94:1);           // boat surges on the drive, checks on the recovery
-    phys.d+=phys.v*surge*dt; phys.d+=(devD-phys.d)*Math.min(1,dt*1.2);
+    phys.d+=phys.v*surge*dt;
+    if(devD>phys.d) phys.d+=(devD-phys.d)*Math.min(1,dt);    // never fall behind the console, but glide past it
   } else {
     if(phys.drive>0){ const a=IMPULSE/DRIVE; const st=Math.min(dt,phys.drive); phys.v+=a*st; phys.drive-=st; }
     phys.v=Math.max(0,phys.v-DRAG*phys.v*phys.v*dt-(phys.v<.4?.05*dt:0));
@@ -952,12 +958,12 @@ function splitChart(splits){
   const Wd=560, H=170, pad={l:44,r:10,t:14,b:26}, iw=Wd-pad.l-pad.r, ih=H-pad.t-pad.b;
   const lo=Math.floor((Math.min(...splits)-6)/5)*5, hi=Math.ceil((Math.max(...splits)+3)/5)*5;
   const y=v=>pad.t+ih*(1-(hi-v)/(hi-lo));   // faster split = taller bar
-  const bw=iw/splits.length;
+  const bw=Math.min(iw/splits.length,90);
   let s='<svg viewBox="0 0 '+Wd+' '+H+'" role="img" aria-label="Split per 500 m">';
   for(let v=lo; v<=hi; v+=Math.max(5,Math.round((hi-lo)/4/5)*5)){ const yy=pad.t+ih*((v-lo)/(hi-lo));
     s+='<line x1="'+pad.l+'" x2="'+(Wd-pad.r)+'" y1="'+yy+'" y2="'+yy+'" stroke="rgba(214,232,234,.12)"/><text x="'+(pad.l-6)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="#9db3b7" font-family="Saira Condensed, sans-serif">'+fmtClock(v)+'</text>'; }
   const best=Math.min(...splits);
-  splits.forEach((v,i)=>{ const top=pad.t+ih*((v-lo)/(hi-lo)), x=pad.l+i*bw+bw*.18, w=bw*.64;
+  splits.forEach((v,i)=>{ const top=pad.t+ih*((v-lo)/(hi-lo)), x=pad.l+(iw-bw*splits.length)/2+i*bw+bw*.18, w=bw*.64;
     s+='<rect x="'+x+'" y="'+top+'" width="'+w+'" height="'+(pad.t+ih-top)+'" rx="3" fill="'+(v===best?'#f2b25c':'rgba(242,178,92,.45)')+'"/>';
     s+='<text x="'+(x+w/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="#9db3b7" font-family="Saira Condensed, sans-serif">'+kmText((i+1)*500)+'</text>'; });
   return s+'</svg>';
