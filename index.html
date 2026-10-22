@@ -828,24 +828,36 @@ let fsTimer=null, fsWrite=null, fsBusy=false, fsBuf=[];
 const hex=s=>new Uint8Array(s.match(/../g).map(h=>parseInt(h,16)));
 const FS_INIT=['0241024303','0241024303','0243014203','02424203','0244014503','0244024603'].map(hex);
 const FS_STATUS=hex('02424203'), FS_TOTALS=hex('0243014203');
+const U=n=>'0000'+n.toString(16).padStart(4,'0')+'-0000-1000-8000-00805f9b34fb';   // full 128-bit UUIDs; Bluefy rejects short numeric ids
+const UUID={fs:U(0xfff0),fsN:U(0xfff1),fsW:U(0xfff2),ftms:U(0x1826),rowData:U(0x2ad1),batt:U(0x180f)};
+async function pickRower(){
+  const tries=[
+    {filters:[{namePrefix:'FS-'},{services:[UUID.ftms]}],optionalServices:[UUID.fs,UUID.ftms]},
+    {filters:[{namePrefix:'FS-'}],optionalServices:[UUID.fs,UUID.ftms]},
+    {acceptAllDevices:true,optionalServices:[UUID.fs,UUID.ftms]}];
+  let last;
+  for(const opts of tries){ try{ return await navigator.bluetooth.requestDevice(opts); }
+    catch(e){ last=e; if(e&&e.name==='NotFoundError'&&!/pars|invalid|type/i.test(e.message||'')) throw e; } }
+  throw last;
+}
 async function connectRower(){
   if(!navigator.bluetooth){ setRowerStatus('This browser has no Web Bluetooth. Safari on iPad does not support it; open this page in Bluefy instead. Tapping works in the meantime.'); return; }
   try{
     setRowerStatus('Looking for rowers…');
-    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'FS-'},{services:[0x1826]}],optionalServices:[0xfff0,0x1826,0x180f]});
+    const dev=await pickRower();
     setRowerStatus('Connecting to '+(dev.name||'rower')+'…');
     const srv=await dev.gatt.connect();
     dev.addEventListener('gattserverdisconnected',()=>{ ftms.on=false; clearInterval(fsTimer); setRowerStatus('Rower disconnected. Tap-to-stroke is active again.'); });
-    let fs=null; try{ fs=await srv.getPrimaryService(0xfff0); }catch(e){}
+    let fs=null; try{ fs=await srv.getPrimaryService(UUID.fs); }catch(e){}
     if(fs){ await startFitShow(fs); ftms.kind='fitshow'; }
-    else { const svc=await srv.getPrimaryService(0x1826), ch=await svc.getCharacteristic(0x2AD1);
+    else { const svc=await srv.getPrimaryService(UUID.ftms), ch=await svc.getCharacteristic(UUID.rowData);
       ch.addEventListener('characteristicvaluechanged',e=>parseFtms(e.target.value)); await ch.startNotifications(); ftms.kind='ftms'; }
     ftms.on=true; ftms.strokes=-1; ftms.base=0; ftms.raw=0; ftms.hist=[]; ftms.derivedV=0;
     setRowerStatus('Connected to '+(dev.name||'rower')+' ('+(ftms.kind==='fitshow'?'FitShow':'FTMS')+'). Waiting for data…');
   }catch(err){ setRowerStatus(err&&err.name==='NotFoundError'?'No rower selected.':'Could not connect: '+(err&&err.message||err)+'. Tapping still works.'); }
 }
 async function startFitShow(svc){
-  const n=await svc.getCharacteristic(0xfff1); fsWrite=await svc.getCharacteristic(0xfff2);
+  const n=await svc.getCharacteristic(UUID.fsN); fsWrite=await svc.getCharacteristic(UUID.fsW);
   n.addEventListener('characteristicvaluechanged',e=>{ const v=e.target.value; for(let i=0;i<v.byteLength;i++) fsBuf.push(v.getUint8(i)); drainFitShow(); });
   await n.startNotifications();
   let i=0, status=true; clearInterval(fsTimer);
@@ -853,7 +865,7 @@ async function startFitShow(svc){
 }
 async function fsSend(frame){
   if(fsBusy||!fsWrite) return; fsBusy=true;
-  try{ if(fsWrite.writeValueWithoutResponse&&fsWrite.properties.writeWithoutResponse) await fsWrite.writeValueWithoutResponse(frame); else await fsWrite.writeValue(frame); }
+  try{ if(fsWrite.writeValueWithoutResponse&&fsWrite.properties&&fsWrite.properties.writeWithoutResponse) await fsWrite.writeValueWithoutResponse(frame); else if(fsWrite.writeValueWithResponse) await fsWrite.writeValueWithResponse(frame); else await fsWrite.writeValue(frame); }
   catch(e){} fsBusy=false;
 }
 function drainFitShow(){
