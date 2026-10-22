@@ -117,6 +117,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .pace button{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:18px;line-height:1}
 .go{background:var(--amber);color:#2b1a05;border:0;border-radius:14px;padding:16px;font-size:18px;font-weight:700;letter-spacing:.02em}
 .go:active{transform:translateY(1px)}
+.linkbtn{background:none;border:0;padding:2px 0;color:var(--ghost);font-size:13px;text-align:left;text-decoration:underline;text-underline-offset:3px}
 .ghostbtn{background:transparent;border:1px solid var(--line);border-radius:12px;padding:12px;font-weight:600}
 .rower{display:flex;flex-direction:column;gap:8px}
 #rowerStatus{font-size:13px;color:var(--dim);line-height:1.4}
@@ -237,6 +238,7 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     <div class="panel card rower">
       <div class="lbl">Rower link</div>
       <button class="ghostbtn" id="bConnect" type="button">Connect rower (FitShow or FTMS)</button>
+      <button class="linkbtn" id="bConnectAll" type="button">Rower not listed? Show all Bluetooth devices</button>
       <div id="rowerStatus">Not connected. Tapping the screen once per stroke works without it.</div>
     </div>
   </div>
@@ -830,21 +832,21 @@ const FS_INIT=['0241024303','0241024303','0243014203','02424203','0244014503','0
 const FS_STATUS=hex('02424203'), FS_TOTALS=hex('0243014203');
 const U=n=>'0000'+n.toString(16).padStart(4,'0')+'-0000-1000-8000-00805f9b34fb';   // full 128-bit UUIDs; Bluefy rejects short numeric ids
 const UUID={fs:U(0xfff0),fsN:U(0xfff1),fsW:U(0xfff2),ftms:U(0x1826),rowData:U(0x2ad1),batt:U(0x180f)};
-async function pickRower(){
-  const tries=[
-    {filters:[{namePrefix:'FS-'},{services:[UUID.ftms]}],optionalServices:[UUID.fs,UUID.ftms]},
-    {filters:[{namePrefix:'FS-'}],optionalServices:[UUID.fs,UUID.ftms]},
+async function pickRower(all){
+  const tries=all?[{acceptAllDevices:true,optionalServices:[UUID.fs,UUID.ftms]}]:[
+    {filters:[{services:[UUID.fs]},{services:[UUID.ftms]}],optionalServices:[UUID.fs,UUID.ftms]},
+    {filters:[{services:[UUID.fs]}],optionalServices:[UUID.fs,UUID.ftms]},
     {acceptAllDevices:true,optionalServices:[UUID.fs,UUID.ftms]}];
   let last;
   for(const opts of tries){ try{ return await navigator.bluetooth.requestDevice(opts); }
     catch(e){ last=e; if(e&&e.name==='NotFoundError'&&!/pars|invalid|type/i.test(e.message||'')) throw e; } }
   throw last;
 }
-async function connectRower(){
+async function connectRower(all){
   if(!navigator.bluetooth){ setRowerStatus('This browser has no Web Bluetooth. Safari on iPad does not support it; open this page in Bluefy instead. Tapping works in the meantime.'); return; }
   try{
     setRowerStatus('Looking for rowers…');
-    const dev=await pickRower();
+    const dev=await pickRower(all===true);
     setRowerStatus('Connecting to '+(dev.name||'rower')+'…');
     const srv=await dev.gatt.connect();
     dev.addEventListener('gattserverdisconnected',()=>{ ftms.on=false; clearInterval(fsTimer); setRowerStatus('Rower disconnected. Tap-to-stroke is active again.'); });
@@ -912,7 +914,8 @@ function parseFtms(dv){
     if(f&32&&i+2<=len){ ftms.power=dv.getInt16(i,true); i+=2; }
   }catch(e){}
 }
-$('bConnect').onclick=connectRower;
+$('bConnect').onclick=()=>connectRower(false);
+$('bConnectAll').onclick=()=>connectRower(true);
 
 /* ================= home screen ================= */
 function renderHome(){
