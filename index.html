@@ -181,6 +181,9 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .xpbox .prog i{transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
 .lvlup{font-weight:600;color:var(--amber)}
 #stormfx{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 45%,rgba(6,10,14,0) 40%,rgba(6,10,14,.92) 100%)}
+.voicepick{display:flex;gap:8px;align-items:center;flex:1 1 220px;justify-content:flex-end;min-width:0}
+.voicepick select{flex:1;min-width:0;max-width:260px;font:inherit;font-size:13px;color:var(--mist);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.ghostbtn.sm{padding:8px 14px;font-size:13px}
 .jroute svg{display:block;width:100%;height:auto}
 .jmeta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--dim);flex-wrap:wrap}
 .jmeta b{font-family:var(--num);font-size:22px;color:var(--mist);font-weight:600;font-variant-numeric:tabular-nums}
@@ -288,6 +291,8 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
         <button type="button" data-k="sunset">Sunset</button><button type="button" data-k="night">Night lanterns</button><button type="button" data-k="rain">Autumn rain</button>
       </div>
       <div class="opt"><span>Cox voice</span><div class="seg" id="coxSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
+      <div class="opt"><span>Voice</span><div class="voicepick"><select id="voiceSel" aria-label="Cox voice"></select><button type="button" class="ghostbtn sm" id="voiceTest">Test</button></div></div>
+      <div class="note" id="voiceNote"></div>
       <div class="opt"><span>Scenery</span><div class="seg" id="scenSeg"><button type="button" data-s="auto">Auto</button><button type="button" data-s="river">Forest river</button><button type="button" data-s="arch">Archipelago</button></div></div>
       <div class="opt"><span>Music</span><div class="seg" id="musSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
       <div class="opt"><span>Speed gates</span><div class="seg" id="gateSeg"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
@@ -1020,15 +1025,32 @@ function playStep(i,t,st,L){ try{
 }catch(e){} }
 
 /* ================= cox voice ================= */
-const cox={voice:null,lastSay:-99,lastGap:0};
-function pickVoice(){ try{ const vs=speechSynthesis.getVoices(); cox.voice=vs.find(v=>/en[-_]GB/i.test(v.lang))||vs.find(v=>/^en/i.test(v.lang))||null; }catch(e){} }
+const cox={voice:null,lastSay:-99,lastGap:0,lastCue:0};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const NOVELTY=/^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Deranged|Good News|Hysterical|Jester|Junior|Organ|Pipe Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Ralph|Kathy|Princess)\b/i;
+const ROBOTIC=/^(Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley)\b/i;
+function voiceScore(v){ const n=v.name||''; let s=0;
+  if(/premium/i.test(n)) s+=6; else if(/enhanced|neural|natural/i.test(n)) s+=4;
+  if(/google|microsoft.*online/i.test(n)) s+=2; if(/en[-_]GB/i.test(v.lang)) s+=1; else if(/en[-_](US|AU|IE)/i.test(v.lang)) s+=.5;
+  if(NOVELTY.test(n)) s-=10; if(ROBOTIC.test(n)) s-=4; return s; }
+function englishVoices(){ try{ return speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang)); }catch(e){ return []; } }
+function pickVoice(){ const vs=englishVoices(), want=store.prefs.coxVoice;
+  cox.voice=(want&&vs.find(v=>v.voiceURI===want))||vs.slice().sort((a,b)=>voiceScore(b)-voiceScore(a))[0]||null; renderVoices(); }
+function renderVoices(){ const sel=$('voiceSel'); if(!sel) return;
+  const vs=englishVoices().sort((a,b)=>voiceScore(b)-voiceScore(a)||a.name.localeCompare(b.name));
+  sel.innerHTML=vs.length?vs.map(v=>'<option value="'+esc(v.voiceURI)+'"'+(cox.voice&&v.voiceURI===cox.voice.voiceURI?' selected':'')+'>'+esc(v.name)+' · '+esc(v.lang)+'</option>').join(''):'<option>No English voices found</option>';
+  const good=vs.some(v=>/premium|enhanced|neural|natural/i.test(v.name));
+  $('voiceNote').textContent=good?'Voices marked Enhanced or Premium sound the most natural. Press Test to hear the one you picked.':
+    'For a more natural cox, download an Enhanced or Premium English voice in the iPad Settings under Accessibility, Spoken Content, Voices. Then reload this page and pick it here.'; }
 if(window.speechSynthesis){ pickVoice(); try{ speechSynthesis.onvoiceschanged=pickVoice; }catch(e){} }
-function say(text,pri){
-  if(!store.prefs.cox||!soundOn||!window.speechSynthesis) return;
+function say(text,pri,force){
+  if((!store.prefs.cox&&!force)||!soundOn||!window.speechSynthesis) return;
   try{ if(speechSynthesis.speaking||speechSynthesis.pending){ if(!pri) return; speechSynthesis.cancel(); }
     const u=new SpeechSynthesisUtterance(text); if(cox.voice){ u.voice=cox.voice; u.lang=cox.voice.lang; } else u.lang='en-GB';
-    u.rate=1.06; u.pitch=.95; speechSynthesis.speak(u); cox.lastSay=simT; }catch(e){}
+    u.rate=1; u.pitch=1; speechSynthesis.speak(u); cox.lastSay=simT; }catch(e){}
 }
+const CUES=['Long through the finish.','Quick hands away, slow up the slide.','Legs, then back, then arms.','Sit tall. Relax the shoulders.','Soft catch, hard drive.',
+  'Breathe. Find your rhythm.','Push the water away with the legs.','Let the boat run under you.','Hands level, nice and smooth.','Strong legs, quiet upper body.'];
 const saySplit=s=>{ const m=Math.floor(s/60), r=Math.round(s-m*60); return r>=60?(m+1)+' flat':m+' '+(r===0?'flat':(r<10?'oh '+r:r)); };
 const sayDist=m=>m>=1000?(m%1000===0?(m/1000)+' k':(m/1000).toFixed(1)+' k'):m+' metres';
 
@@ -1131,8 +1153,8 @@ function stroke(src){
     if(spm>=30){ sess.rateRun++; if(sess.rateRun>=20) unlock('rate30'); } else sess.rateRun=0;
     if(sess.strokes===6) fadeHint();
     const P=sess.p10;
-    if(P.phase==='call'){ if(--P.wait<=0){ P.phase='on'; P.left=10; P.vs=0; P.ts=0; say('Go!',true); } }
-    else if(P.phase==='on'){ P.left--; if(P.left===5) say('Five more',false); if(P.left<=0) endPower10(); }
+    if(P.phase==='call'){ if(--P.wait<=0){ P.phase='on'; P.left=10; P.vs=0; P.ts=0; say(pick(['Go!','Now!','Up!']),true); } }
+    else if(P.phase==='on'){ P.left--; if(P.left===5) say(pick(['Five more.','Halfway, five more.','Keep going, five!']),false); if(P.left<=0) endPower10(); }
     p10Hud();
   }
 }
@@ -1206,7 +1228,7 @@ function finish(complete){
   } else if(/You beat|ahead<\/b> of/.test(rivalVerdict)) addScore(150,null);
   if(rival&&rival.kind==='storm'){ rivalVerdict=sess.caught?'The storm caught you after <b>'+fmtM(d)+' m</b>.':'You stopped <b>'+fmtM(Math.max(0,d-sess.stormD))+' m</b> clear of the storm.'; addScore(Math.round(d/5),null); }
   if(complete) addScore(100,null);
-  say(complete?'Easy oar. Well rowed.':'Easy oar.',true); hideP10(); musicStop();
+  say(complete?pick(['Easy oar. Well rowed.','And easy. Lovely work.','Easy there. Good row.']):pick(['Easy oar.','And easy.']),true); hideP10(); musicStop();
   checkChallenge(true);
   const saveable=!sess.demo&&t>10&&d>50;
   let pbLine='';
@@ -1248,7 +1270,7 @@ function unlock(id){
   if(!sess||sess.demo||store.unlocked[id]) return;
   store.unlocked[id]=Date.now(); save(); sess.newAch.push(id);
   const a=ACH.find(x=>x.id===id); if(!a) return;
-  toast(a.name,a.desc,a.code); chime(); addScore(50,null); say('Milestone. '+a.name,false);
+  toast(a.name,a.desc,a.code); chime(); addScore(50,null); say(pick(['Milestone. ','Nice, that\'s ','New medal: '])+a.name+'.',false);
 }
 function toast(t1,t2,medal){
   const el=document.createElement('div'); el.className='toast';
@@ -1267,11 +1289,11 @@ function ghostLabelHtml(){ if(!sess||!rival) return; const pts=sess.score?' · <
 function p10Hud(){ const P=sess&&sess.p10, el=$('p10'); if(!P||P.phase==='idle'){ el.hidden=true; return; }
   el.hidden=false; el.className=P.phase==='call'?'call':''; el.textContent=P.phase==='call'?'Power 10 · next stroke':'Power 10 · '+P.left; }
 function hideP10(){ $('p10').hidden=true; }
-function startPower10(){ const P=sess.p10; P.phase='call'; P.wait=1; P.base=Math.max(sess.vEma,.5); say('Power ten. On the next one.',true); p10Hud(); }
+function startPower10(){ const P=sess.p10; P.phase='call'; P.wait=1; P.base=Math.max(sess.vEma,.5); say(pick(['Power ten, on the next one.','Give me ten. Next stroke.','Ten big ones, on this one.']),true); p10Hud(); }
 function endPower10(){ const P=sess.p10, avg=P.ts>0?P.vs/P.ts:0, imp=avg/P.base-1; sess.p10best=Math.max(sess.p10best||0,imp);
   P.phase='idle'; P.next=sess.t+90+Math.random()*60; p10Hud();
-  if(imp>.03){ const pts=Math.min(250,50+Math.round(imp*1000)); addScore(pts,'Power 10 · +'+Math.round(imp*100)+'% speed'); say('Good ten! Plus '+Math.round(imp*100)+' percent. Settle.',true); if(imp>=.08) unlock('p10'); }
-  else { toast('Power 10 done','Settle into your rhythm'); say('Settle. Find your rhythm.',true); } }
+  if(imp>.03){ const pts=Math.min(250,50+Math.round(imp*1000)); addScore(pts,'Power 10 · +'+Math.round(imp*100)+'% speed'); say(pick(['Good ten! ','That moved it! ','Lovely! '])+Math.round(imp*100)+' percent faster. '+pick(['Settle.','And settle.','Back to rhythm.']),true); if(imp>=.08) unlock('p10'); }
+  else { toast('Power 10 done','Settle into your rhythm'); say(pick(['Settle. Back to rhythm.','Good. Settle it down.','And settle. Long and strong.']),true); } }
 function coxTick(w){
   if(!sess.started) return; const t=sess.t, L=sess.lastCall;
   // final-stretch calls
@@ -1280,8 +1302,10 @@ function coxTick(w){
   if(w.type==='time'){ const rem=w.target-t;
     [[w.target/2,'Halfway. Hold the rhythm.'],[60,'One minute left.'],[30,'Thirty seconds. Squeeze it up.'],[10,'Ten seconds. Empty the tank!']].forEach(([s,txt],i)=>{ if(rem<=s&&!L['t'+i]){ L['t'+i]=1; say(txt,true); } }); }
   // stopped rowing
-  if(simT-lastStrokeAt>9&&!sess.stopCalled&&mode==='rowing'){ sess.stopCalled=true; say('Keep it moving. Back on the oars.',false); }
+  if(simT-lastStrokeAt>9&&!sess.stopCalled&&mode==='rowing'){ sess.stopCalled=true; say(pick(['Keep it moving. Back on the oars.','Don\'t stop now. Pick it up.','Come on, back to it.']),false); }
   if(simT-lastStrokeAt<3) sess.stopCalled=false;
+  // a technique cue now and then when the cox has been quiet
+  if(t>30&&simT-lastStrokeAt<3&&simT-cox.lastSay>50&&simT-cox.lastCue>70){ cox.lastCue=simT; say(pick(CUES),false); }
   // periodic race report
   if(t-cox.lastGap>70&&simT-cox.lastSay>12&&t>40){ cox.lastGap=t;
     if(rival.kind==='storm') say('The storm is '+Math.round(phys.d-sess.stormD)+' metres back.',false);
@@ -1374,7 +1398,7 @@ function frame(now){
     while(phys.d>=sess.next500){
       const prevT=sess.splits.reduce((a,b)=>a+b,0), segT=sess.t-prevT;
       sess.splits.push(+segT.toFixed(1));
-      if(!(w.type==='dist'&&sess.next500>=w.target)){ toast(kmText(sess.next500),'Split '+fmtClock(segT,true)+' /500 m'); say(sayDist(sess.next500)+'. Split '+saySplit(segT)+'.',false); }
+      if(!(w.type==='dist'&&sess.next500>=w.target)){ toast(kmText(sess.next500),'Split '+fmtClock(segT,true)+' /500 m'); { const dd=sayDist(sess.next500), sp=saySplit(segT); say(pick([dd+'. Split '+sp+'.','That\'s '+dd+', sitting at '+sp+'.',dd+' gone. '+sp+' split.']),false); } }
       sess.next500+=500;
     }
     while(sess.nextDistAch<DIST_ACH.length&&phys.d>=DIST_ACH[sess.nextDistAch][0]){ unlock(DIST_ACH[sess.nextDistAch][1]); sess.nextDistAch++; }
@@ -1599,6 +1623,9 @@ function renderHome(){
   $('rivals').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',p.rival===b.dataset.r); b.onclick=()=>{ p.rival=b.dataset.r; save(); renderHome(); }; });
   $('paceVal').textContent=fmtClock(p.pace);
   $('conds').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',p.cond===b.dataset.k); b.onclick=()=>{ p.cond=b.dataset.k; save(); applyCond(p.cond==='auto'?autoCond():p.cond); renderHome(); }; });
+  renderVoices();
+  $('voiceSel').onchange=e=>{ store.prefs.coxVoice=e.target.value; save(); pickVoice(); audioInit(); say('Hello. I will be your cox today.',true,true); };
+  $('voiceTest').onclick=()=>{ audioInit(); pickVoice(); say(pick(['Attention. Go! Sitting at two oh five, long and strong.','Five hundred gone. Give me ten, on the next one.','You are up three metres. Hold that rhythm.']),true,true); };
   $('coxSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.cox)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.cox=b.dataset.v==='1'; save(); renderHome(); if(p.cox){ audioInit(); say('Cox here. Ready when you are.',true); } }; });
   $('beatSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.beat)===b.dataset.v); b.onclick=()=>{ p.beat=+b.dataset.v; save(); renderHome(); }; });
   const r=resolveRival();
