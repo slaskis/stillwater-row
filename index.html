@@ -198,6 +198,23 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 #cine .cap{position:absolute;left:max(24px,env(safe-area-inset-left,0px));bottom:calc(10vh + 16px);font-family:var(--num);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#fff;font-size:22px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
 #flashfx{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none} #flashfx.go{animation:fl .7s ease-out}
 @keyframes fl{0%{opacity:.85}100%{opacity:0}} @keyframes lb{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.season{display:flex;flex-direction:column}
+.ev{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.ev:first-child{border-top:0}
+.evnum{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--num);font-weight:700;background:rgba(242,178,92,.15);color:var(--amber)}
+.ev.locked .evnum{background:rgba(255,255,255,.05);color:var(--dim)} .ev.locked .evinfo b{color:var(--dim)}
+.evinfo{display:flex;flex-direction:column;min-width:0} .evinfo b{font-weight:600}
+.evinfo small{font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evst{font-size:16px;letter-spacing:1px;white-space:nowrap}
+.on{color:var(--amber)} .off{color:rgba(214,232,234,.22)}
+.evgo{background:rgba(242,178,92,.12);border:1px solid rgba(242,178,92,.35);color:var(--amber);border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600;white-space:nowrap}
+.evgo:disabled{background:transparent;border-color:var(--line);color:var(--dim);cursor:not-allowed}
+.evres{display:flex;gap:16px;align-items:center;background:rgba(242,178,92,.06);border:1px solid rgba(242,178,92,.25);border-radius:12px;padding:12px 14px}
+.evstars{font-size:34px;letter-spacing:2px;white-space:nowrap;line-height:1}
+.evres b{display:block;font-family:var(--num);font-size:24px;font-weight:600;line-height:1.1} .evres small{display:block;font-size:13px;color:var(--dim);margin-top:2px} .evres .unl{color:var(--good)}
+#count .evintro{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:0 24px}
+#count .evt,#count .evg{font-family:var(--ui);font-size:18px;letter-spacing:.1em;font-weight:600;text-transform:none}
+#count .evn{font-size:clamp(40px,7vw,88px);line-height:1}
 .jroute svg{display:block;width:100%;height:auto}
 .jmeta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--dim);flex-wrap:wrap}
 .jmeta b{font-family:var(--num);font-size:22px;color:var(--mist);font-weight:600;font-variant-numeric:tabular-nums}
@@ -279,6 +296,10 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     <div class="panel card sect">
       <div class="lbl">Today's challenge</div>
       <div class="chal" id="chal"></div>
+    </div>
+    <div class="panel card sect">
+      <div class="lbl">Regatta season · <span id="seasonStars" style="color:var(--mist)"></span></div>
+      <div class="season" id="season"></div>
     </div>
     <div class="panel card sect">
       <div class="lbl">Piece</div>
@@ -393,7 +414,7 @@ function loadStore(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null')
   return {v:1,sessions:[],lifetime:0,unlocked:{},days:[],prefs:{wk:'2k',rival:'best',pace:130}}; }
 const store=loadStore();
 store.prefs=Object.assign({wk:'2k',rival:'best',pace:130,cond:'auto',cox:true,beat:0,journey:'gota',gates:true,livery:'stillwater',music:true,scenery:'auto'},store.prefs||{});
-store.wild=store.wild||{}; store.xp=store.xp||0; store.chal=store.chal||{};
+store.season=store.season||{}; store.wild=store.wild||{}; store.xp=store.xp||0; store.chal=store.chal||{};
 store.journeys=store.journeys||{};
 function save(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} }
 
@@ -424,6 +445,8 @@ const ACH=[
   {id:'fleet1', code:'1st', name:'Head of the river', desc:'Win a fleet race'},
   {id:'voyage', code:'J', name:'Voyager', desc:'Complete a whole journey'},
   {id:'storm5', code:'S5', name:'Weathered it', desc:'Outrun the storm for 5 minutes'},
+  {id:'season1', code:'S1', name:'Season champion', desc:'Earn a medal in every regatta event'},
+  {id:'season3', code:'24', name:'Perfect season', desc:'Gold in every regatta event'},
   {id:'ivall', code:'IV', name:'Every rep', desc:'Hit the target on every interval'},
   {id:'wild8', code:'8/8', name:'Field naturalist', desc:'Spot all eight animals'},
   {id:'combo5', code:'×5', name:'Five in a row', desc:'Hit 5 speed gates in a row'},
@@ -441,6 +464,22 @@ const LIVERIES=[
   {id:'royal',name:'Royal',lvl:8,hull:0x4b2f6e,shirt:0xf2d48a,blade:0xf2d48a},
   {id:'gold',name:'Gold hull',lvl:12,hull:0xd9a63c,shirt:0x1c1c1c,blade:0x1c1c1c},
   {id:'aurora',name:'Aurora',lvl:16,hull:0x12343b,shirt:0x5ff0c8,blade:0xe85dbf}];
+const SEASON=[
+  {id:'ev1',name:'Village Sprint',place:'Söderköping',kind:'duel',delta:8,rival:'Old Man Svensson',col:{shirt:0x6b4f2a,hull:0xd9c7a3,blade:0x6b4f2a},cond:'dawn',scen:'river',goal:'Beat Svensson over 500 m',st:[0,3,8],
+   taunt:{start:'Thirty years unbeaten, young one. Don\'t get your hopes up!',ahead:['See you at the jetty!','Is that all you have got?'],behind:['Hmph. Beginner\'s luck.','Not so fast, young one!'],win:'Thirty-one years! Better luck next summer.',lose:'Well rowed. I will get you next year.'}},
+  {id:'ev2',name:'Canal Time Trial',place:'Göta kanal',kind:'tt',delta:2,cond:'day',scen:'river',goal:'Beat the target time over 1,000 m',st:[0,3,6]},
+  {id:'ev3',name:'Lantern Race',place:'Motala',kind:'fleet',delta:6,cond:'night',scen:'river',goal:'Finish in the top 3 of 7'},
+  {id:'ev4',name:'Gate Run',place:'Lake Roxen',kind:'gates',cond:'sunset',scen:'river',goal:'Clear three speed gates over 1,500 m',st:[1,2,3]},
+  {id:'ev5',name:'Storm Warning',place:'Lake Vättern',kind:'storm',cond:'day',scen:'river',goal:'Stay ahead of the squall',st:[3,5,7]},
+  {id:'ev6',name:'Archipelago Classic',place:'Sandhamn',kind:'duel',delta:-1,rival:'Ingrid Holm',col:{shirt:0x1f6f8b,hull:0xf4f1ea,blade:0xe85d4a},cond:'sunset',scen:'arch',goal:'Beat Ingrid over 2,000 m',st:[0,3,6],
+   taunt:{start:'Nice boat. Shame about the engine.',ahead:['Bye for now!','Keep up if you can!'],behind:['Enjoy the view while it lasts.','Oh, you want a race? Fine.'],win:'That is my title, thank you very much.',lose:'Okay. You earned that one.'}},
+  {id:'ev7',name:'Interval Gauntlet',place:'Vaxholm',kind:'iv',cond:'rain',scen:'arch',goal:'Hit the target on four hard 500s',st:[2,3,4]},
+  {id:'ev8',name:'Head of the River',place:'Stockholm',kind:'fleet',delta:-3,cond:'dawn',scen:'arch',goal:'Win against the six best crews'}];
+{ const iv=WORKOUTS.find(x=>x.id==='4x500').plan, EW={ev1:{type:'dist',target:500},ev2:{type:'dist',target:1000},ev3:{type:'dist',target:1000},ev4:{type:'dist',target:1500},
+    ev5:{type:'storm'},ev6:{type:'dist',target:2000},ev7:{type:'intervals',plan:iv},ev8:{type:'dist',target:2000}};
+  SEASON.forEach(e=>WORKOUTS.push(Object.assign({id:e.id,name:e.name,sub:e.place,hidden:true},EW[e.id]))); }
+const starStr=n=>'<span class="on">'+'★'.repeat(n)+'</span><span class="off">'+'★'.repeat(3-n)+'</span>';
+function evUnlocked(i){ return i===0||((store.season[SEASON[i-1].id]||{}).stars||0)>0; }
 function hashStr(t){ let h=2166136261; for(let i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
 const DIST_ACH=[[100,'d100'],[500,'d500'],[1000,'d1k'],[2000,'d2k'],[5000,'d5k'],[10000,'d10k']];
 const GATES=[500,1000,2000,5000,10000];
@@ -888,7 +927,7 @@ function makeGateObj(g){
 }
 function disposeGate(g){ scene.remove(g.obj); g.mat.dispose(); g.lineMat.dispose(); g.tex.dispose(); g.spr.material.dispose(); g.obj=null; }
 function clearGates(){ gates.forEach(g=>{ if(g.obj) disposeGate(g); }); gates=[]; }
-function buildGates(w){ clearGates(); if(!store.prefs.gates||w.type==='intervals') return; let i=0;
+function buildGates(w){ clearGates(); const ev=sess&&sess.ev; if(ev?ev.kind!=='gates':(!store.prefs.gates||w.type==='intervals')) return; let i=0;
   for(let d=300; d<60000; d+=400, i++){ if(w.type==='dist'&&d>w.target-150) break; gates.push({d,gold:i%4===3,live:false,res:null,obj:null,pop:0}); } }
 function startGate(g){
   g.live=true; g.t0=sess.t; g.d0=phys.d;
@@ -1119,6 +1158,9 @@ function say(text,pri,force){
     const u=new SpeechSynthesisUtterance(text); if(cox.voice){ u.voice=cox.voice; u.lang=cox.voice.lang; } else u.lang='en-GB';
     u.rate=1; u.pitch=1; speechSynthesis.speak(u); cox.lastSay=simT; }catch(e){}
 }
+function rivalVoice(){ const vs=englishVoices().filter(v=>!cox.voice||v.voiceURI!==cox.voice.voiceURI).sort((a,b)=>voiceScore(b)-voiceScore(a)); return vs[0]||cox.voice; }
+function rivalSay(text){ if(!store.prefs.cox||!soundOn||!window.speechSynthesis||!text) return;
+  try{ const u=new SpeechSynthesisUtterance(text), v=rivalVoice(); if(v){ u.voice=v; u.lang=v.lang; } else u.lang='en-GB'; u.pitch=(!v||v===cox.voice)?1.3:1; u.rate=1.05; speechSynthesis.speak(u); }catch(e){} }
 const CUES=['Long through the finish.','Quick hands away, slow up the slide.','Legs, then back, then arms.','Sit tall. Relax the shoulders.','Soft catch, hard drive.',
   'Breathe. Find your rhythm.','Push the water away with the legs.','Let the boat run under you.','Hands level, nice and smooth.','Strong legs, quiet upper body.'];
 const saySplit=s=>{ const m=Math.floor(s/60), r=Math.round(s-m*60); return r>=60?(m+1)+' flat':m+' '+(r===0?'flat':(r<10?'oh '+r:r)); };
@@ -1170,8 +1212,16 @@ function bestFor(wkId){ const w=wkById(wkId), list=realSessions(wkId);
 function lastFor(wkId){ const l=realSessions(wkId); return l.length?l[l.length-1]:null; }
 
 function recentSplit(){ const r=store.sessions.filter(x=>!x.demo&&x.d>=300).slice(-3); return r.length?Math.round(r.reduce((a,x)=>a+x.t/(x.d/500),0)/r.length):0; }
-function resolveRival(){
-  const p=store.prefs, w=wkById(p.wk);
+function evRival(ev,w){ const B=recentSplit()||150;
+  if(ev.kind==='duel') return {kind:'fleet',duel:true,split:B+ev.delta,label:ev.rival,short:'',crews:[{f:1,h:0,amp:5,name:ev.rival,lane:LANE_GHOST,boat:duelBoat(ev.rival,ev.col)}]};
+  if(ev.kind==='fleet') return {kind:'fleet',split:B+ev.delta,label:'the fleet',short:''};
+  if(ev.kind==='tt'){ const sp=B+ev.delta; return {kind:'pace',tt:true,split:sp,label:'Target time · '+fmtClock(w.target/500*sp,true),short:'TARGET',spm:24}; }
+  if(ev.kind==='storm') return {kind:'storm',label:'the storm',short:''};
+  if(ev.kind==='iv') return {kind:'iv',label:'your target',short:''};
+  return {kind:'pace',split:B+3,label:'Pace boat · '+fmtClock(B+3)+' /500 m',short:'PACE '+fmtClock(B+3),spm:24}; }
+function resolveRival(ev){
+  const p=store.prefs, w=ev?wkById(ev.id):wkById(p.wk);
+  if(ev) return evRival(ev,w);
   if(w.type==='storm') return {kind:'storm',label:'the storm',short:''};
   if(w.type==='intervals') return {kind:'iv',label:'your target',short:''};
   if(p.rival==='fleet'){ const sp=recentSplit()||p.pace; return {kind:'fleet',split:sp,label:'the fleet',short:''}; }
@@ -1189,13 +1239,18 @@ const FLEET_COL=[{shirt:0xd9483b,hull:0x2b2b2b,blade:0xd9483b},{shirt:0x2f6fb5,h
 const FLEET_NAMES=['Grey Heron','Birch Point','Old Mill','Lantern','North Wind','Ironside'];
 const fleet=FLEET_COL.map((c,i)=>{ const b=makeBoat(false,c); b.g.visible=false; b.g.add(labelSprite(FLEET_NAMES[i],'#'+c.shirt.toString(16).padStart(6,'0').replace('1f1f1f','e7eff0'))); return b; });
 let fleetState=null;
-function setupFleet(w,split){
-  const v0=500/split, D=w.type==='dist'?w.target/v0:(w.type==='time'?w.target:900);
-  const facs=[.86,.9,.93,.96,.985,1.035], ks=[.12,.27,.42,.58,.8,0], lanes=[LANE_GHOST,6.9,-7.3,LANE_GHOST,6.9,-7.3];
-  fleetState=facs.map((f,i)=>({v:v0*f,h:f<1?ks[i]*D*v0*(1-f):-14,lane:lanes[i],ph:Math.random()*6,sign:0,next:0,spm:Math.round(24+f*4),name:FLEET_NAMES[i]}));
-  fleet.forEach(b=>{ b.g.visible=true; b.a.p=1; b.a.drive=false; });
+const duelBoats={};
+function duelBoat(name,col){ if(!duelBoats[name]){ const b=makeBoat(false,col); b.g.add(labelSprite(name,'#e7eff0')); b.g.visible=false; duelBoats[name]=b; } return duelBoats[name]; }
+function hideFleet(){ fleet.forEach(b=>{ b.g.visible=false; }); Object.values(duelBoats).forEach(b=>{ b.g.visible=false; }); fleetState=null; }
+function setupFleet(w,split,crews){
+  const v0=500/split;
+  if(crews) fleetState=crews.map(c=>({v:v0*c.f,h:c.h,lane:c.lane,ph:0,amp:c.amp,sign:0,next:0,spm:26,name:c.name,boat:c.boat}));
+  else { const D=w.type==='dist'?w.target/v0:(w.type==='time'?w.target:900);
+    const facs=[.86,.9,.93,.96,.985,1.035], ks=[.12,.27,.42,.58,.8,0], lanes=[LANE_GHOST,6.9,-7.3,LANE_GHOST,6.9,-7.3];
+    fleetState=facs.map((f,i)=>({v:v0*f,h:f<1?ks[i]*D*v0*(1-f):-14,lane:lanes[i],ph:Math.random()*6,sign:0,next:0,spm:Math.round(24+f*4),name:FLEET_NAMES[i],boat:fleet[i]})); }
+  fleetState.forEach(st=>{ st.boat.g.visible=true; st.boat.a.p=1; st.boat.a.drive=false; });
 }
-function fleetD(i,t){ const b=fleetState[i]; let d=b.h+b.v*t+Math.sin(t/11+b.ph)*2.5; if(finishAt) d=Math.min(d,finishAt); return d; }
+function fleetD(i,t){ const b=fleetState[i]; let d=b.h+b.v*t+Math.sin(t/11+b.ph)*(b.amp||2.5); if(finishAt) d=Math.min(d,finishAt); return d; }
 function fleetPos(){ let ahead=0, next=null, nd=Infinity, behind=null, bd=Infinity; const t=sess.started?sess.t:0;
   fleetState.forEach((b,i)=>{ const g=fleetD(i,t)-phys.d; if(g>0){ ahead++; if(g<nd){ nd=g; next=b; } } else if(-g<bd){ bd=-g; behind=b; } });
   return {pos:ahead+1,next,nd,behind,bd}; }
@@ -1234,31 +1289,36 @@ function curSpm(){ if(strokeTimes.length<2||simT-lastStrokeAt>6) return 0;
   const n=strokeTimes.length-1, span=strokeTimes[n]-strokeTimes[0]; return span>0?60*n/span:0; }
 
 /* ================= session flow ================= */
-function startSession(){
-  audioInit(); requestWake(); musicStop(); musicStart();
-  const w=wkById(store.prefs.wk);
-  rival=resolveRival();
+function startSession(ev){
+  ev=ev&&ev.kind?ev:null;
+  audioInit(); requestWake(); musicStop(); musicStart(); cine=null; $('cine').hidden=true;
+  const prevCond=cond, w=ev?wkById(ev.id):wkById(store.prefs.wk);
+  rival=resolveRival(ev);
   sess={wk:w.id,t:0,started:false,demo:autoOn,strokes:0,samples:[0],splits:[],next500:500,sub2:0,rateRun:0,
         newAch:[],nextDistAch:0,gapSign:0,complete:false,score:0,lastCall:{},vEma:0,stopCalled:false,
         p10:{phase:'idle',next:75+Math.random()*45,wait:0,left:0,vs:0,ts:0,base:0},beatNext:0,g:{n:0,hit:0,combo:0,best:0,live:null}};
-  sess.chal=todayChallenge(); buildGates(w);
-  sess.storm=w.type==='storm'; sess.stormD=-80; sess.stormVb=500/(recentSplit()||150); sess.stormK=0; stormWall.visible=sess.storm; stormMix(0,0); scen=sceneryKey();
+  sess.ev=ev; sess.prevCond=prevCond; sess.chal=todayChallenge(); buildGates(w);
+  sess.storm=w.type==='storm'; sess.stormD=-80; sess.stormVb=500/(recentSplit()||150); sess.stormK=0; stormWall.visible=sess.storm; stormMix(0,0); scen=ev?ev.scen:sceneryKey();
   const jj=jCur(); journeyOffset=jMeters(jj)<jj.km*1000?jMeters(jj):null; sess.jNext=journeyOffset===null?null:jNextStop(jj,journeyOffset);
-  const ck=store.prefs.cond==='auto'?autoCond():store.prefs.cond; if(ck!==cond) applyCond(ck);
+  const ck=ev?ev.cond:(store.prefs.cond==='auto'?autoCond():store.prefs.cond); if(ck!==cond) applyCond(ck);
   finishAt=w.type==='dist'?w.target:0;
   phys.v=0; phys.d=0; phys.drive=0; strokeTimes=[]; lastStrokeAt=simT-10;
   me.a.drive=false; me.a.p=1;
   if(ftms.on) ftms.dist0=ftms.dist;
   resetWorld(); updateChunks(0);
-  fleet.forEach(b=>{ b.g.visible=false; }); fleetState=null;
-  if(rival.kind==='storm'||rival.kind==='iv'){ gh.g.visible=false; }
+  hideFleet();
   sess.iv=w.type==='intervals'?{plan:w.plan,i:0,t0:0,d0:0,reps:[],base:recentSplit()||150}:null; if(sess.iv) sess.p10.next=1e9;
-  else if(rival.kind==='fleet'){ gh.g.visible=false; setupFleet(w,rival.split); }
+  if(rival.kind==='storm'||rival.kind==='iv'){ gh.g.visible=false; }
+  else if(rival.kind==='fleet'){ gh.g.visible=false; setupFleet(w,rival.split,rival.crews); }
   else { gh.g.visible=true; gh.a.p=1; gh.a.drive=false; gh.next=0; setGhostLabel(rival.short); }
   $('wkName').textContent=w.name; ghostLabelHtml();
   $('home').hidden=true; $('done').hidden=true; $('hud').hidden=false;
   updateHud(true);
-  countdown();
+  if(ev){ const n=SEASON.indexOf(ev)+1; mode='countdown'; const el=$('count'); el.hidden=false;
+    el.innerHTML='<div class="evintro"><div class="evt">Event '+n+' · '+esc(ev.place)+'</div><div class="evn">'+esc(ev.name)+'</div><div class="evg">'+esc(ev.goal)+'</div></div>';
+    say('Event '+n+'. '+ev.name+'. '+ev.goal+'.',true); if(ev.taunt) setTimeout(()=>rivalSay(ev.taunt.start),900);
+    const my=sess; setTimeout(()=>{ if(sess===my&&mode==='countdown') countdown(); },ev.taunt?6800:3600); }
+  else countdown();
 }
 function countdown(){
   mode='countdown'; const el=$('count'); el.hidden=false;
@@ -1279,10 +1339,10 @@ function finish(complete){
   sess.complete=complete;
   const gD=rival?rivalD(t):0, gap=d-gD;
   let rivalVerdict='';
-  if(rival&&rival.kind!=='storm'&&rival.kind!=='iv'){
+  if(rival&&rival.kind!=='storm'&&rival.kind!=='iv'&&rival.kind!=='fleet'){
     if(w.type==='dist'&&complete){
       const rt=rival.kind==='pace'?w.target/500*rival.split:(rival.s.complete?rival.s.t:Infinity);
-      const dt=rt-t; rivalVerdict=isFinite(rt)?(dt>0?'You beat '+rivalName()+' by <b>'+dt.toFixed(1)+' s</b>.':'<b class="bad">'+rivalName(true)+' was '+(-dt).toFixed(1)+' s faster</b>. Next time.'):'';
+      const dt=rt-t; sess.margin=dt; rivalVerdict=isFinite(rt)?(dt>0?'You beat '+rivalName()+' by <b>'+dt.toFixed(1)+' s</b>.':'<b class="bad">'+rivalName(true)+' was '+(-dt).toFixed(1)+' s faster</b>. Next time.'):'';
       if(dt>0) unlock('ghost');
     } else if(t>30){
       rivalVerdict=gap>=0?'You finished <b>'+gap.toFixed(1)+' m ahead</b> of '+rivalName()+'.':'<b class="bad">'+rivalName(true)+' finished '+(-gap).toFixed(1)+' m ahead</b>.';
@@ -1293,10 +1353,12 @@ function finish(complete){
     let pos=1;
     if(w.type==='dist'&&complete) fleetState.forEach(b=>{ if((w.target-b.h)/b.v<t) pos++; });
     else fleetState.forEach((b,i)=>{ if(fleetD(i,t)>d) pos++; });
-    const ord=['1st','2nd','3rd','4th','5th','6th','7th'][pos-1];
-    rivalVerdict=pos===1?'You <b>won the fleet race</b>. Head of the river.':(pos<=3?'You finished <b>'+ord+' of 7</b>.':'<b class="bad">'+ord+' of 7</b> this time.');
+    const N=fleetState.length+1, ord=['1st','2nd','3rd','4th','5th','6th','7th'][pos-1];
+    if(rival.duel){ const b=fleetState[0], rt=(w.target-b.h)/b.v, mg=complete&&w.type==='dist'?rt-t:null; sess.margin=mg;
+      rivalVerdict=pos===1?'You beat <b>'+esc(b.name)+'</b>'+(mg!==null?' by '+mg.toFixed(1)+' s':'')+'.':'<b class="bad">'+esc(b.name)+' won'+(mg!==null?' by '+(-mg).toFixed(1)+' s':'')+'</b>. Go again.'; }
+    else rivalVerdict=pos===1?'You <b>won the fleet race</b>. Head of the river.':(pos<=3?'You finished <b>'+ord+' of '+N+'</b>.':'<b class="bad">'+ord+' of '+N+'</b> this time.');
     if(t>60) addScore([0,300,200,100][pos]||0,null);
-    if(pos===1&&t>60) unlock('fleet1');
+    if(pos===1&&t>60&&!rival.duel) unlock('fleet1');
     sess.fleetPos=pos;
   } else if(/You beat|ahead<\/b> of/.test(rivalVerdict)) addScore(150,null);
   if(sess.iv&&sess.iv.reps.length){ const R=sess.iv.reps, avg=R.reduce((a,r)=>a+r.sp,0)/R.length;
@@ -1305,6 +1367,7 @@ function finish(complete){
   if(complete) addScore(100,null);
   say(complete?pick(['Easy oar. Well rowed.','And easy. Lovely work.','Easy there. Good row.']):pick(['Easy oar.','And easy.']),true); hideP10(); musicStop();
   checkChallenge(true);
+  if(sess.ev&&!sess.demo) evResult(sess.ev,complete);
   const saveable=!sess.demo&&t>10&&d>50;
   let pbLine='';
   if(saveable){
@@ -1335,7 +1398,7 @@ function finish(complete){
   const show=()=>{ $('cine').hidden=true; $('done').hidden=false;
   setTimeout(()=>{ const i=$('xpDone'); if(i) i.style.width=i.dataset.w+'%'; },80);
   const lvUp=sess.xp&&sess.xp.L1>sess.xp.L0;
-  if((complete&&w.type!=='storm')||lvUp||pbLine.indexOf('New personal')===0||/won the fleet|You beat/.test(rivalVerdict)) celebrate(true);
+  if((complete&&w.type!=='storm')||lvUp||pbLine.indexOf('New personal')===0||(sess.evRes&&sess.evRes.s>sess.evRes.prev)||/won the fleet|You beat/.test(rivalVerdict)) celebrate(true);
   if(lvUp) setTimeout(()=>say('Level up! Level '+sess.xp.L1+'. '+rankOf(sess.xp.L1)+'.',false),1900); };
   let rm=false; try{ rm=matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
   if(complete&&!rm){ cine={t:0,dur:2.8,show};
@@ -1343,11 +1406,31 @@ function finish(complete){
     $('cine').hidden=false; const f=$('flashfx'); f.className=''; void f.offsetWidth; f.className='go'; shutter(); }
   else show();
 }
+function evResult(ev,complete){
+  let s=0, hint=''; const n=SEASON.indexOf(ev), prev=(store.season[ev.id]||{}).stars||0, M=['bronze','silver','gold'];
+  const tier=(v,th)=>v>=th[2]?3:v>=th[1]?2:v>=th[0]?1:0;
+  if(ev.kind==='duel'||ev.kind==='tt'){ const m=complete&&sess.margin!=null?sess.margin:-1; s=m>ev.st[2]?3:m>ev.st[1]?2:m>ev.st[0]?1:0;
+    if(s<3) hint=s===0?(ev.kind==='duel'?'Win the race for bronze.':'Beat the target time for bronze.'):'Win by more than '+ev.st[s]+' s for '+M[s]+'.'; }
+  else if(ev.kind==='fleet'){ const p=complete?(sess.fleetPos||9):9; s=p===1?3:p===2?2:p===3?1:0; if(s<3) hint=s===0?'Finish in the top 3 for bronze.':'Finish '+(s===1?'2nd':'1st')+' for '+M[s]+'.'; }
+  else if(ev.kind==='gates'){ s=complete?tier(sess.g.hit,ev.st):0; if(s<3) hint='Clear '+ev.st[s]+' gate'+(ev.st[s]>1?'s':'')+' for '+M[s]+'.'; }
+  else if(ev.kind==='storm'){ s=tier(sess.t/60,ev.st); if(s<3) hint='Survive '+ev.st[s]+' minutes for '+M[s]+'.'; }
+  else if(ev.kind==='iv'){ s=complete&&sess.iv?tier(sess.iv.reps.filter(r=>r.hit).length,ev.st):0; if(s<3) hint='Hit '+ev.st[s]+' rep targets for '+M[s]+'.'; }
+  store.season[ev.id]={stars:Math.max(prev,s)};
+  const unlockedNext=prev===0&&s>0&&n<SEASON.length-1?SEASON[n+1]:null;
+  if(s>prev) addScore((s-prev)*150,null);
+  if(SEASON.every(e=>((store.season[e.id]||{}).stars||0)>0)) unlock('season1');
+  if(SEASON.every(e=>((store.season[e.id]||{}).stars||0)===3)) unlock('season3');
+  save(); sess.evRes={s,prev,hint,unlockedNext,n};
+  if(ev.taunt) setTimeout(()=>rivalSay(sess&&sess.fleetPos===1?ev.taunt.lose:ev.taunt.win),3200);
+}
+function evHtml(){ const r=sess.evRes; if(!r) return ''; const med=['No medal this time','Bronze','Silver','Gold'][r.s];
+  return '<div class="evres"><div class="evstars" aria-label="'+r.s+' of 3 stars">'+starStr(r.s)+'</div><div><div class="lbl">Regatta season · event '+(r.n+1)+'</div><b>'+med+(r.s>r.prev&&r.prev>0?' · new best':'')+'</b>'+
+    '<small>'+esc(r.hint||'Gold. Nothing left to win here.')+'</small>'+(r.unlockedNext?'<small class="unl">Next event unlocked: '+esc(r.unlockedNext.name)+'</small>':'')+'</div></div>'; }
 function shutter(){ if(!ac||!soundOn) return; try{ const n=Math.floor(ac.sampleRate*.05), b=ac.createBuffer(1,n,ac.sampleRate), ch=b.getChannelData(0);
   for(let i=0;i<n;i++) ch[i]=(Math.random()*2-1)*Math.exp(-i/(n*.15));
   [0,.07].forEach(dl=>{ const s2=ac.createBufferSource(); s2.buffer=b; const f=ac.createBiquadFilter(); f.type='highpass'; f.frequency.value=2500; const g=ac.createGain(); g.gain.value=.35;
     s2.connect(f).connect(g).connect(ac.destination); s2.start(ac.currentTime+dl); }); }catch(e){} }
-function rivalName(cap){ if(!rival) return ''; if(rival.kind==='iv') return cap?'Your target':'your target'; if(rival.kind==='storm') return cap?'The storm':'the storm'; if(rival.kind==='fleet') return cap?'The fleet':'the fleet'; const n=rival.kind==='pace'?'the pace boat':(store.prefs.rival==='best'?'your best':'your last session'); return cap?n[0].toUpperCase()+n.slice(1):n; }
+function rivalName(cap){ if(!rival) return ''; if(rival.tt) return cap?'The target time':'the target time'; if(rival.kind==='iv') return cap?'Your target':'your target'; if(rival.kind==='storm') return cap?'The storm':'the storm'; if(rival.kind==='fleet') return cap?'The fleet':'the fleet'; const n=rival.kind==='pace'?'the pace boat':(store.prefs.rival==='best'?'your best':'your last session'); return cap?n[0].toUpperCase()+n.slice(1):n; }
 function streak(){ const set=new Set(store.days); let n=0; const d=new Date(); if(!set.has(dayKey(d))) d.setDate(d.getDate()-1);
   while(set.has(dayKey(d))){ n++; d.setDate(d.getDate()-1); } return n; }
 
@@ -1371,7 +1454,7 @@ function addScore(n,label){ if(!sess||sess.demo||!n) return; sess.score+=n; if(l
 function ghostLabelHtml(){ if(!sess||!rival) return; const pts=sess.score?' · <span class="pts">'+fmtM(sess.score)+' pts</span>':'';
   if(rival.kind==='iv'){ $('ghostLbl').innerHTML=ivLabel()+pts; return; }
   if(rival.kind==='storm'){ $('ghostLbl').innerHTML='Outrun the storm · <b>distance to the storm</b>'+pts; return; }
-  if(rival.kind==='fleet'){ const fp=fleetState?fleetPos():{pos:7}; $('ghostLbl').innerHTML='Fleet race · <b>position '+fp.pos+' of 7</b>'+pts; }
+  if(rival.kind==='fleet'){ const fp=fleetState?fleetPos():{pos:7}, N=fleetState?fleetState.length+1:7; $('ghostLbl').innerHTML=rival.duel?('Duel with '+esc(rival.label)+' · <b>'+(fp.pos===1?'you lead':'chasing')+'</b>'+pts):('Fleet race · <b>position '+fp.pos+' of '+N+'</b>'+pts); }
   else $('ghostLbl').innerHTML='Racing <b>'+esc(rival.label)+'</b>'+pts; }
 function p10Hud(){ const P=sess&&sess.p10, el=$('p10'); if(!P||P.phase==='idle'){ el.hidden=true; return; }
   el.hidden=false; el.className=P.phase==='call'?'call':''; el.textContent=P.phase==='call'?'Power 10 · next stroke':'Power 10 · '+P.left; }
@@ -1555,7 +1638,7 @@ function frame(now){
     if(rival&&rival.kind!=='fleet'&&rival.kind!=='storm'&&rival.kind!=='iv'&&sess.t>6){ const gap=phys.d-rivalD(sess.t), sg=gap>1.5?1:(gap<-1.5?-1:sess.gapSign);
       if(sess.gapSign!==0&&sg!==sess.gapSign){ toast(sg>0?'You passed '+rivalName():rivalName(true)+' passed you',sg>0?'Hold that rhythm':'Lift the rate for ten'); say(sg>0?'You have taken '+rivalName()+'. Hold that rhythm.':rivalName(true)+' has gone past. Lift the rate for ten!',true); } sess.gapSign=sg; }
     if(fleetState&&sess.t>3) fleetState.forEach((b,i)=>{ const g=phys.d-fleetD(i,sess.t), sg=g>2?1:(g<-2?-1:b.sign);
-      if(b.sign!==0&&sg!==b.sign){ if(sg>0){ const fp=fleetPos(); addScore(100,'You passed '+b.name); say('That\'s '+b.name+'. Position '+fp.pos+'.',true); } else { toast(b.name+' passed you','Hold them off'); say(b.name+' coming through. Hold them off!',true); } }
+      if(b.sign!==0&&sg!==b.sign){ if(sg>0){ const fp=fleetPos(); addScore(100,'You passed '+b.name); say('That\'s '+b.name+'. Position '+fp.pos+'.',true); if(rival.duel&&sess.ev&&sess.ev.taunt) rivalSay(pick(sess.ev.taunt.behind)); } else { toast(b.name+' passed you','Hold them off'); say(b.name+' coming through. Hold them off!',true); if(rival.duel&&sess.ev&&sess.ev.taunt) rivalSay(pick(sess.ev.taunt.ahead)); } }
       b.sign=sg; });
     sess.vEma+=(phys.v-sess.vEma)*Math.min(1,dt/15);
     const P=sess.p10; if(P.phase==='on'){ P.vs+=phys.v*dt; P.ts+=dt; }
@@ -1590,7 +1673,7 @@ function frame(now){
     animBoat(gh,dt,false);
   }
   if(fleetState&&sess){ const ft=sess.started?sess.t:0;
-    fleet.forEach((b,i)=>{ const st=fleetState[i]; placeBoat(b,fleetD(i,ft),st.lane,simT+i);
+    fleetState.forEach((st,i)=>{ const b=st.boat; placeBoat(b,fleetD(i,ft),st.lane,simT+i);
       if(sess.started&&mode==='rowing'&&simT>=st.next&&fleetD(i,ft)<(finishAt||1e9)){ const per=60/st.spm; st.next=simT+per; boatStroke(b,per-DRIVE); }
       animBoat(b,dt,false); }); }
   updateRipples(dt);
@@ -1762,12 +1845,19 @@ function renderRank(){
   $('liveries').querySelectorAll('button:not([disabled])').forEach(bt=>bt.onclick=()=>{ store.prefs.livery=bt.dataset.l; save(); applyLivery(); renderRank(); });
   let cur=LIVERIES.find(l=>l.id===store.prefs.livery)||LIVERIES[0]; if(L<cur.lvl) cur=LIVERIES[0]; $('livName').textContent=cur.name;
 }
+function renderSeason(){
+  const tot=SEASON.reduce((a,e)=>a+((store.season[e.id]||{}).stars||0),0); $('seasonStars').textContent=tot+' of '+SEASON.length*3+' stars';
+  $('season').innerHTML=SEASON.map((e,i)=>{ const st=(store.season[e.id]||{}).stars||0, lock=!evUnlocked(i);
+    return '<div class="ev'+(lock?' locked':'')+'"><div class="evnum">'+(i+1)+'</div><div class="evinfo"><b>'+esc(e.name)+'</b><small>'+esc(e.place)+' · '+esc(e.goal)+'</small></div>'+
+      '<div class="evst" aria-label="'+st+' of 3 stars">'+starStr(st)+'</div><button type="button" class="evgo" data-i="'+i+'"'+(lock?' disabled':'')+'>'+(lock?'Locked':(st?'Again':'Race'))+'</button></div>'; }).join('');
+  $('season').querySelectorAll('.evgo:not([disabled])').forEach(b=>b.onclick=()=>startSession(SEASON[+b.dataset.i]));
+}
 function renderHome(){
-  const p=store.prefs; renderJourney(); renderWild(); renderRank(); renderChallenge();
+  const p=store.prefs; renderJourney(); renderWild(); renderSeason(); renderRank(); renderChallenge();
   $('musSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.music)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.music=b.dataset.v==='1'; save(); renderHome(); }; });
   $('scenSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',(p.scenery||'auto')===b.dataset.s); b.onclick=()=>{ p.scenery=b.dataset.s; save(); setScenery(true); renderHome(); }; });
   $('gateSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.gates)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.gates=b.dataset.v==='1'; save(); renderHome(); }; });
-  $('wks').innerHTML=WORKOUTS.map(w=>{ const b=bestFor(w.id);
+  $('wks').innerHTML=WORKOUTS.filter(w=>!w.hidden).map(w=>{ const b=bestFor(w.id);
     const pb=b?(w.type==='intervals'?'Best avg '+fmtClock(b.avgWork,true):w.type==='dist'?'Best '+fmtClock(b.t,true):(w.type==='time'?'Best '+fmtM(b.d)+' m':'Longest '+fmtM(b.d)+' m')):'No result yet';
     return '<button type="button" class="wkbtn" data-w="'+w.id+'" aria-pressed="'+(p.wk===w.id)+'"><span class="n">'+w.name+'</span><span class="s">'+w.sub+'</span><span class="pb">'+pb+'</span></button>'; }).join('');
   $('wks').querySelectorAll('button').forEach(b=>b.onclick=()=>{ p.wk=b.dataset.w; save(); renderHome(); });
@@ -1791,12 +1881,13 @@ function renderHome(){
 }
 $('paceDown').onclick=()=>{ store.prefs.pace=Math.max(90,store.prefs.pace-5); store.prefs.rival='pace'; save(); renderHome(); };
 $('paceUp').onclick=()=>{ store.prefs.pace=Math.min(240,store.prefs.pace+5); store.prefs.rival='pace'; save(); renderHome(); };
-$('bStart').onclick=startSession;
+$('bStart').onclick=()=>startSession();
 $('bSound').addEventListener('click',()=>{ rainAmbience(rain.visible); if(!soundOn&&window.speechSynthesis) try{speechSynthesis.cancel();}catch(e){} });
 
 function goHome(){
+  const evPrev=sess&&sess.ev?sess.prevCond:null;
   mode='home'; sess=null; rival=null; autoOn=false; $('bAuto').setAttribute('aria-pressed','false');
-  journeyOffset=null; clearGates(); musicStop(); stormWall.visible=false; stormMix(0,0); scen=sceneryKey(); gh.g.visible=false; fleet.forEach(b=>{b.g.visible=false;}); fleetState=null; hideP10(); finishAt=0; resetWorld(); updateChunks(phys.d);
+  journeyOffset=null; clearGates(); musicStop(); stormWall.visible=false; stormMix(0,0); scen=sceneryKey(); gh.g.visible=false; hideFleet(); hideP10(); finishAt=0; resetWorld(); updateChunks(phys.d); if(evPrev&&evPrev!==cond) applyCond(evPrev);
   $('done').hidden=true; $('hud').hidden=true; $('home').hidden=false; renderHome();
 }
 
@@ -1820,13 +1911,14 @@ function xpHtml(){ const x=sess.xp; if(!x) return ''; const L=x.L1, a=LEVEL_XP(L
   return '<div class="xpbox"><div class="xprow"><span class="lbl">Level '+L+' · '+esc(rankOf(L))+'</span><b>+'+fmtM(x.gain)+' XP</b></div><div class="prog"><i id="xpDone" data-w="'+pct.toFixed(1)+'"></i></div>'+
     (x.L1>x.L0?'<div class="lvlup">Level up! You reached level '+L+'.'+(x.newLiv.length?' New boat colours: '+esc(x.newLiv.map(l=>l.name).join(', '))+'.':'')+'</div>':'')+'</div>'; }
 function renderDone(r){
+  const ei=sess.ev?SEASON.indexOf(sess.ev):-1, nextEv=ei>=0&&ei<SEASON.length-1&&evUnlocked(ei+1)?SEASON[ei+1]:null;
   const avgSplit=r.d>0?r.t/(r.d/500):Infinity, spm=r.t>0?sess.strokes/(r.t/60):0, v=r.t>0?r.d/r.t:0;
   const title=r.w.type==='intervals'?r.w.name+(sess.iv&&sess.iv.reps.length?' · '+sess.iv.reps.filter(x=>x.hit).length+' of '+sess.iv.reps.length+' on target':''):r.w.type==='storm'?'Survived '+fmtM(r.d)+' m · '+fmtClock(r.t):(r.w.type==='dist'&&r.complete?r.w.name+' in '+fmtClock(r.t,true):(r.w.type==='time'&&r.complete?fmtM(r.d)+' m in '+r.w.name:fmtM(r.d)+' m in '+fmtClock(r.t)));
   const newA=sess.newAch.map(id=>ACH.find(a=>a.id===id)).filter(Boolean);
   $('result').innerHTML=
     '<div class="lbl">'+(r.complete?'Piece complete':'Session ended')+'</div><h2>'+esc(title)+'</h2>'+
     '<div class="verdict">'+[r.rivalVerdict,esc(r.pbLine)].filter(Boolean).join(' ')+(r.saveable?'':' <span style="color:var(--dim)">'+(sess.demo?'Autopilot was on, so this row was not saved.':'Too short to save.')+'</span>')+'</div>'+
-    xpHtml()+
+    evHtml()+xpHtml()+
     (sess.chalDone?'<div class="jfact">Daily challenge complete: '+esc(sess.chal.text)+'. +300 points.</div>':'')+
     (sess.jLine?'<div class="jfact">'+esc(sess.jLine.name)+': <b>+'+kmFmt(sess.jLine.after-sess.jLine.before)+' km</b>, now '+kmFmt(sess.jLine.after)+' of '+sess.jLine.km+' km'+
       (sess.jReached&&sess.jReached.length?'. Reached '+esc(sess.jReached.join(', '))+'.':'.')+(sess.jLine.next?' Next stop: '+esc(sess.jLine.next.name)+' in '+toGo(sess.jLine.next.km*1000-sess.jLine.after)+'.':' Journey complete!')+'</div>':'')+
@@ -1836,8 +1928,9 @@ function renderDone(r){
     (sess.spotted&&sess.spotted.length?'<div class="jfact">Spotted on the water: '+esc(sess.spotted.map(k=>WILD[k].name).join(', '))+'.</div>':'')+
     '<div class="lbl">Splits</div><div class="chart">'+splitChart(sess.splits)+'</div>'+
     (newA.length?'<div class="lbl">Milestones unlocked</div><div class="newach">'+newA.map(a=>'<div class="ach on"><div class="medal">'+a.code+'</div><div><div style="font-weight:600">'+a.name+'</div><small>'+a.desc+'</small></div></div>').join('')+'</div>':'')+
-    '<div class="btns"><button class="go" type="button" id="bAgain">Row it again</button><button class="ghostbtn" type="button" id="bHome">Back to the dock</button></div>';
-  $('bAgain').onclick=()=>{ $('done').hidden=true; startSession(); };
+    '<div class="btns">'+(nextEv?'<button class="go" type="button" id="bNext">Next: '+esc(nextEv.name)+'</button>':'')+'<button class="'+(nextEv?'ghostbtn':'go')+'" type="button" id="bAgain">'+(sess.ev?'Race again':'Row it again')+'</button><button class="ghostbtn" type="button" id="bHome">Back to the dock</button></div>';
+  $('bAgain').onclick=()=>{ $('done').hidden=true; startSession(sess.ev); };
+  const bn=$('bNext'); if(bn) bn.onclick=()=>{ $('done').hidden=true; startSession(nextEv); };
   $('bHome').onclick=goHome;
 }
 
