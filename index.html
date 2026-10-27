@@ -184,6 +184,20 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 .voicepick{display:flex;gap:8px;align-items:center;flex:1 1 220px;justify-content:flex-end;min-width:0}
 .voicepick select{flex:1;min-width:0;max-width:260px;font:inherit;font-size:13px;color:var(--mist);background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .ghostbtn.sm{padding:8px 14px;font-size:13px}
+.reps{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.rep{background:rgba(255,255,255,.04);border-radius:10px;padding:10px;border-left:3px solid var(--line)}
+.rep b{display:block;font-family:var(--num);font-weight:600;font-size:24px;line-height:1;font-variant-numeric:tabular-nums}
+.rep span{font-size:12px;color:var(--dim)} .rep.hit{border-left-color:var(--good)} .rep.hit b{color:var(--good)} .rep.miss{border-left-color:var(--bad)}
+.wild{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.wc{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:0}
+.wc.seen{border-color:rgba(134,217,166,.4);background:rgba(134,217,166,.07)}
+.wc b{font-weight:600;font-size:14px} .wc small{color:var(--dim);font-size:12px} .wc.unseen b{color:var(--dim)}
+#cine{position:fixed;inset:0;pointer-events:none}
+#cine::before,#cine::after{content:"";position:absolute;left:0;right:0;height:10vh;background:#000;animation:lb .45s ease-out both}
+#cine::before{top:0;transform-origin:top} #cine::after{bottom:0;transform-origin:bottom}
+#cine .cap{position:absolute;left:max(24px,env(safe-area-inset-left,0px));bottom:calc(10vh + 16px);font-family:var(--num);font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#fff;font-size:22px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+#flashfx{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none} #flashfx.go{animation:fl .7s ease-out}
+@keyframes fl{0%{opacity:.85}100%{opacity:0}} @keyframes lb{from{transform:scaleY(0)}to{transform:scaleY(1)}}
 .jroute svg{display:block;width:100%;height:auto}
 .jmeta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--dim);flex-wrap:wrap}
 .jmeta b{font-family:var(--num);font-size:22px;color:var(--mist);font-weight:600;font-variant-numeric:tabular-nums}
@@ -213,6 +227,8 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 
 <canvas id="gl" aria-label="3D river scene. Tap to take a stroke."></canvas>
 <div id="stormfx" aria-hidden="true"></div>
+<div id="cine" hidden><div class="cap" id="cineCap">Photo finish</div></div>
+<div id="flashfx" aria-hidden="true"></div>
 
 <div id="hud" hidden>
   <div class="top">
@@ -322,6 +338,10 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
       <div class="jfact" id="jFact"></div>
     </div>
     <div class="panel card sect">
+      <div class="lbl">Field guide · <span id="wildCount" style="color:var(--mist)"></span></div>
+      <div class="wild" id="wildGrid"></div>
+    </div>
+    <div class="panel card sect">
       <div class="lbl">Your logbook</div>
       <div class="kpis">
         <div><b id="kStreak">0</b><span>day streak</span></div>
@@ -373,7 +393,7 @@ function loadStore(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null')
   return {v:1,sessions:[],lifetime:0,unlocked:{},days:[],prefs:{wk:'2k',rival:'best',pace:130}}; }
 const store=loadStore();
 store.prefs=Object.assign({wk:'2k',rival:'best',pace:130,cond:'auto',cox:true,beat:0,journey:'gota',gates:true,livery:'stillwater',music:true,scenery:'auto'},store.prefs||{});
-store.xp=store.xp||0; store.chal=store.chal||{};
+store.wild=store.wild||{}; store.xp=store.xp||0; store.chal=store.chal||{};
 store.journeys=store.journeys||{};
 function save(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} }
 
@@ -384,6 +404,8 @@ const WORKOUTS=[
   {id:'2k', name:'2,000 m', sub:'The classic test', type:'dist', target:2000},
   {id:'5k', name:'5,000 m', sub:'Steady state', type:'dist', target:5000},
   {id:'20min', name:'20 minutes', sub:'Hold your split', type:'time', target:1200},
+  {id:'4x500', name:'4 × 500 m', sub:'Intervals, 1:30 easy between', type:'intervals', plan:[{k:'work',d:500,off:4},{k:'rest',t:90},{k:'work',d:500,off:4},{k:'rest',t:90},{k:'work',d:500,off:4},{k:'rest',t:90},{k:'work',d:500,off:4}]},
+  {id:'pyramid', name:'Pyramid', sub:'1-2-3-2-1 min hard, 1 min easy', type:'intervals', plan:[{k:'work',t:60,off:7},{k:'rest',t:60},{k:'work',t:120,off:5},{k:'rest',t:60},{k:'work',t:180,off:3},{k:'rest',t:60},{k:'work',t:120,off:5},{k:'rest',t:60},{k:'work',t:60,off:7}]},
   {id:'storm', name:'Outrun the storm', sub:'Survive as long as you can', type:'storm'},
 ];
 const ACH=[
@@ -402,6 +424,8 @@ const ACH=[
   {id:'fleet1', code:'1st', name:'Head of the river', desc:'Win a fleet race'},
   {id:'voyage', code:'J', name:'Voyager', desc:'Complete a whole journey'},
   {id:'storm5', code:'S5', name:'Weathered it', desc:'Outrun the storm for 5 minutes'},
+  {id:'ivall', code:'IV', name:'Every rep', desc:'Hit the target on every interval'},
+  {id:'wild8', code:'8/8', name:'Field naturalist', desc:'Spot all eight animals'},
   {id:'combo5', code:'×5', name:'Five in a row', desc:'Hit 5 speed gates in a row'},
   {id:'p10', code:'P10', name:'Power ten', desc:'Find 8% extra speed in a Power 10'},
 ];
@@ -643,6 +667,31 @@ function makeLighthouse(x,y,z){ const g=new THREE.Group();
   g.add(part(GEO.cyl,DARKL,.8,1.2,.8,0,8.6,0)); g.add(part(GEO.cone,LH_RED,1,1.3,1,0,9.2,0));
   if(lanternsOn){ const l=new THREE.Sprite(glowMat); l.scale.set(7,7,1); l.position.y=8.6; g.add(l); }
   g.position.set(x,y-.3,z); return g; }
+const FUR=new THREE.MeshLambertMaterial({color:0x8a5a3a}), FOXF=new THREE.MeshLambertMaterial({color:0xc8642a}), MOOSEF=new THREE.MeshLambertMaterial({color:0x3d2b1f}),
+  ANTLER=new THREE.MeshLambertMaterial({color:0xc9b28a}), EAGLEF=new THREE.MeshLambertMaterial({color:0x4a3626}), SEALF=new THREE.MeshLambertMaterial({color:0x6e6a66}),
+  BEAVF=new THREE.MeshLambertMaterial({color:0x5a3d28}), STICKS=new THREE.MeshLambertMaterial({color:0x5b4632});
+function legs(g,mat,h,w,l,r){ for(const sx of [-1,1]) for(const sz of [-1,1]) g.add(part(GEO.cyl,mat,r,h,r,sx*w,h/2,sz*l)); }
+function makeDeer(){ const g=new THREE.Group(); legs(g,FUR,.75,.12,.3,.035);
+  g.add(part(GEO.sph,FUR,.2,.24,.5,0,.92,0)); g.add(part(GEO.cyl,FUR,.06,.42,.06,0,1.18,-.4,-.5)); g.add(part(GEO.sph,FUR,.09,.09,.17,0,1.38,-.55));
+  for(const sx of [-1,1]) g.add(part(GEO.cone,FUR,.04,.14,.02,sx*.07,1.44,-.5)); g.add(part(GEO.sph,WHITE,.08,.08,.05,0,.98,.48)); return g; }
+function makeFox(){ const g=new THREE.Group(); legs(g,DARKL,.28,.07,.18,.025);
+  g.add(part(GEO.sph,FOXF,.12,.13,.32,0,.38,0)); g.add(part(GEO.sph,FOXF,.09,.085,.12,0,.47,-.34)); g.add(part(GEO.cone,FOXF,.035,.12,.035,0,.45,-.48,-Math.PI/2));
+  for(const sx of [-1,1]) g.add(part(GEO.cone,FOXF,.035,.1,.02,sx*.05,.55,-.32));
+  g.add(part(GEO.sph,FOXF,.07,.07,.24,0,.36,.44,.5)); g.add(part(GEO.sph,WHITE,.045,.045,.06,0,.27,.62)); return g; }
+function makeMoose(){ const g=new THREE.Group(); legs(g,MOOSEF,1.3,.22,.55,.07);
+  g.add(part(GEO.sph,MOOSEF,.45,.55,1,0,1.75,0)); g.add(part(GEO.sph,MOOSEF,.3,.3,.4,0,2.15,-.35));
+  g.add(part(GEO.cyl,MOOSEF,.15,.6,.15,0,2.0,-.9,-.9)); g.add(part(GEO.sph,MOOSEF,.18,.22,.42,0,2.05,-1.25));
+  for(const sx of [-1,1]){ const a=part(GEO.box,ANTLER,.6,.05,.32,sx*.38,2.42,-1.08); a.rotation.z=sx*.35; g.add(a); } return g; }
+function makeEagle(){ const g=new THREE.Group();
+  g.add(part(GEO.sph,EAGLEF,.22,.18,.6,0,0,0)); g.add(part(GEO.sph,WHITE,.13,.13,.15,0,.04,-.62)); g.add(part(GEO.box,WHITE,.35,.05,.32,0,0,.66));
+  for(const sx of [-1,1]){ const piv=new THREE.Group(); piv.userData.wing=sx; piv.add(part(GEO.box,EAGLEF,1.9,.06,.55,sx*1,0,0)); g.add(piv); }
+  g.scale.setScalar(1.6); return g; }
+function makeSeal(){ const g=new THREE.Group(); g.add(part(GEO.sph,SEALF,.42,.3,.95,0,.18,0)); g.add(part(GEO.sph,SEALF,.22,.2,.26,0,.36,-.85)); return g; }
+function makeBeaver(){ const g=new THREE.Group(); g.add(part(GEO.sph,BEAVF,.25,.17,.42,0,.02,0)); g.add(part(GEO.sph,BEAVF,.13,.11,.15,0,.07,-.42)); g.add(part(GEO.box,DARKL,.22,.04,.36,0,0,.52)); return g; }
+const WILD={swan:{name:'Mute swan',rar:'Common',pts:10},heron:{name:'Grey heron',rar:'Common',pts:10},deer:{name:'Roe deer',rar:'Uncommon',pts:30},
+  fox:{name:'Red fox',rar:'Uncommon',pts:40},seal:{name:'Grey seal',rar:'Uncommon',pts:40,where:'archipelago'},eagle:{name:'White-tailed eagle',rar:'Rare',pts:80},
+  beaver:{name:'Beaver',rar:'Rare',pts:80,where:'forest river'},moose:{name:'Moose',rar:'Rare',pts:100,where:'forest river'}};
+const WILD_ORDER=['swan','heron','deer','fox','seal','eagle','beaver','moose'];
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 const dummy=new THREE.Object3D(), tmpC=new THREE.Color();
 function instanced(geo,mat,items,fn){
@@ -718,10 +767,26 @@ function buildChunk(k){
   // stone bridges every 1.5 km
   for(let m=Math.floor(d0/1500)*1500+700; m<d0+CH; m+=1500) if(m>=d0&&m>0&&scen!=='arch') grp.add(makeBridge(m));
   // wildlife
-  const crit=[];
+  const crit=[], wild=[];
   if(rnd()<.55){ const d=d0+20+rnd()*(CH-40), off=(rnd()-.5)*18;
-    for(let j=0;j<2;j++){ const sw=makeSwan(); sw.rotation.y=rnd()*6; grp.add(sw); crit.push({g:sw,kind:'swan',d:d+j*1.6,off:off+j*.9,ph:rnd()*6}); } }
-  if(rnd()<.4){ const side=rnd()<.5?1:-1, d=d0+rnd()*CH, hr=makeHeron(); hr.position.set(cx(d)+side*(W/2+.9),-.05,-d); hr.rotation.y=(side>0?-1:1)*Math.PI/2+(rnd()-.5); grp.add(hr); }
+    for(let j=0;j<2;j++){ const sw=makeSwan(); sw.rotation.y=rnd()*6; grp.add(sw); crit.push({g:sw,kind:'swan',d:d+j*1.6,off:off+j*.9,ph:rnd()*6}); } wild.push({kind:'swan',d,side:off<0?-1:1}); }
+  if(rnd()<.4){ const side=rnd()<.5?1:-1, d=d0+rnd()*CH, hr=makeHeron(); hr.position.set(cx(d)+side*(W/2+.9),-.05,-d); hr.rotation.y=(side>0?-1:1)*Math.PI/2+(rnd()-.5); grp.add(hr); wild.push({kind:'heron',d,side}); }
+  const spot=(side,omin,omax,ymin,ymax)=>{ for(let tr=0;tr<6;tr++){ const d=d0+10+rnd()*(CH-20), o=omin+rnd()*(omax-omin), y=meshY(d,o,side); if(y>ymin&&y<ymax) return {d,o,y}; } return null; };
+  const face=side=>side>0?Math.PI/2:-Math.PI/2;
+  const putLand=(kind,mk,omin,omax,ymin)=>{ const side=rnd()<.5?1:-1, q=spot(side,omin,omax,ymin,8); if(!q) return;
+    const m=mk(); m.position.set(cx(q.d)+side*(W/2+q.o),q.y-.05,-q.d); m.rotation.y=face(side)+(rnd()-.5)*.9; grp.add(m); wild.push({kind,d:q.d,side}); };
+  if(scen!=='arch'&&rnd()<.12) putLand('deer',makeDeer,5,22,.3);
+  if(rnd()<.08) putLand('fox',makeFox,3,14,.2);
+  if(scen!=='arch'&&rnd()<.045) putLand('moose',makeMoose,6,25,.3);
+  if(rnd()<.06){ const side=rnd()<.5?1:-1, d=d0+rnd()*CH, eg=makeEagle(); grp.add(eg);
+    crit.push({g:eg,kind:'eagle',x0:cx(d)+side*(W/2+18),y0:30+rnd()*10,z0:-d,ph:rnd()*6}); wild.push({kind:'eagle',d,side}); }
+  if(scen==='arch'&&rnd()<.18){ const side=rnd()<.5?1:-1, q=spot(side,.5,8,-.1,1.2), sl=makeSeal();
+    if(q){ sl.position.set(cx(q.d)+side*(W/2+q.o),q.y-.1,-q.d); sl.rotation.y=face(side)+(rnd()-.5); grp.add(sl); wild.push({kind:'seal',d:q.d,side}); }
+    else { const d=d0+rnd()*CH; sl.position.set(cx(d)+side*(W/2-3),-.25,-d); sl.rotation.y=rnd()*6; grp.add(sl); crit.push({g:sl,kind:'bob',y0:-.25,ph:rnd()*6}); wild.push({kind:'seal',d,side}); } }
+  if(scen!=='arch'&&rnd()<.05){ const side=rnd()<.5?1:-1, d=d0+15+rnd()*(CH-30), bv=makeBeaver();
+    bv.position.set(cx(d)+side*(W/2-1.1),0,-d); bv.rotation.y=rnd()*6; grp.add(bv); crit.push({g:bv,kind:'bob',y0:0,ph:rnd()*6});
+    const lodge=part(GEO.cone,STICKS,2.4,1.7,2.4,cx(d+4)+side*(W/2+.6),-.5,-(d+4)); grp.add(lodge); wild.push({kind:'beaver',d,side}); }
+  grp.userData.wild=wild;
   grp.userData.crit=crit;
   // red cottages with jetties
   const nCot=scen==='arch'?(rnd()<.7?2:1):(rnd()<.55?1:0)+(rnd()<.2?1:0);
@@ -744,7 +809,11 @@ function buildChunk(k){
 }
 function updateCritters(){
   for(const [,g] of chunks){ const cr=g.userData.crit; if(!cr) continue;
-    for(const c of cr){ const near=Math.abs(c.d-phys.d)<30&&Math.abs(c.off-LANE_ME)<6;
+    for(const c of cr){
+      if(c.kind==='eagle'){ const a=simT*.22+c.ph; c.g.position.set(c.x0+Math.cos(a)*24,c.y0+Math.sin(a*2)*1.5,c.z0+Math.sin(a)*24); c.g.rotation.set(0,Math.PI-a,-.25);
+        c.g.children.forEach(ch=>{ if(ch.userData.wing) ch.rotation.z=ch.userData.wing*(.1+Math.sin(simT*1.6+c.ph)*.12); }); continue; }
+      if(c.kind==='bob'){ c.g.position.y=c.y0+Math.sin(simT*1.1+c.ph)*.06; continue; }
+      const near=Math.abs(c.d-phys.d)<30&&Math.abs(c.off-LANE_ME)<6;
       if(near){ c.off+=(Math.sign(c.off-LANE_ME||1)*11-c.off)*.012; }           // swans paddle out of your way
       c.g.position.set(cx(c.d)+c.off,Math.sin(simT*1.3+c.ph)*.03,-c.d); } }
 }
@@ -819,7 +888,7 @@ function makeGateObj(g){
 }
 function disposeGate(g){ scene.remove(g.obj); g.mat.dispose(); g.lineMat.dispose(); g.tex.dispose(); g.spr.material.dispose(); g.obj=null; }
 function clearGates(){ gates.forEach(g=>{ if(g.obj) disposeGate(g); }); gates=[]; }
-function buildGates(w){ clearGates(); if(!store.prefs.gates) return; let i=0;
+function buildGates(w){ clearGates(); if(!store.prefs.gates||w.type==='intervals') return; let i=0;
   for(let d=300; d<60000; d+=400, i++){ if(w.type==='dist'&&d>w.target-150) break; gates.push({d,gold:i%4===3,live:false,res:null,obj:null,pop:0}); } }
 function startGate(g){
   g.live=true; g.t0=sess.t; g.d0=phys.d;
@@ -999,6 +1068,7 @@ function musicStop(){ if(MUS.timer){ clearInterval(MUS.timer); MUS.timer=null; }
   if(MUS.master&&ac){ const g=MUS.master; try{ g.gain.setTargetAtTime(0,ac.currentTime,.3); }catch(e){} setTimeout(()=>{ try{ g.disconnect(); }catch(e){} },1500); MUS.master=null; } }
 function musicLevel(){
   if(mode!=='rowing'||!sess||!sess.started||simT-lastStrokeAt>5) return 0;
+  if(sess.iv){ const seg=ivSeg(); return seg&&seg.k==='work'?3:0; }
   const P=sess.p10, w=wkById(sess.wk);
   if((P&&P.phase==='on')||(w.type==='dist'&&w.target-phys.d<250)||(sess.storm&&sess.stormK>.6)) return 3;
   const base=recentSplit()||150, sp=phys.v>.3?500/phys.v:999;
@@ -1094,6 +1164,7 @@ let lastStrokeAt=-10, strokeTimes=[];
 function wkById(id){ return WORKOUTS.find(w=>w.id===id)||WORKOUTS[1]; }
 function realSessions(wkId){ return store.sessions.filter(s=>s.wk===wkId&&!s.demo); }
 function bestFor(wkId){ const w=wkById(wkId), list=realSessions(wkId);
+  if(w.type==='intervals'){ const c=list.filter(x=>x.complete&&x.avgWork); return c.length?c.reduce((a,b)=>b.avgWork<a.avgWork?b:a):null; }
   if(w.type==='dist'){ const c=list.filter(s=>s.complete); return c.length?c.reduce((a,b)=>b.t<a.t?b:a):null; }
   return list.length?list.reduce((a,b)=>b.d>a.d?b:a):null; }
 function lastFor(wkId){ const l=realSessions(wkId); return l.length?l[l.length-1]:null; }
@@ -1102,6 +1173,7 @@ function recentSplit(){ const r=store.sessions.filter(x=>!x.demo&&x.d>=300).slic
 function resolveRival(){
   const p=store.prefs, w=wkById(p.wk);
   if(w.type==='storm') return {kind:'storm',label:'the storm',short:''};
+  if(w.type==='intervals') return {kind:'iv',label:'your target',short:''};
   if(p.rival==='fleet'){ const sp=recentSplit()||p.pace; return {kind:'fleet',split:sp,label:'the fleet',short:''}; }
   let s=null, label='';
   if(p.rival==='best'){ s=bestFor(w.id); label='Your best'; }
@@ -1128,7 +1200,7 @@ function fleetPos(){ let ahead=0, next=null, nd=Infinity, behind=null, bd=Infini
   fleetState.forEach((b,i)=>{ const g=fleetD(i,t)-phys.d; if(g>0){ ahead++; if(g<nd){ nd=g; next=b; } } else if(-g<bd){ bd=-g; behind=b; } });
   return {pos:ahead+1,next,nd,behind,bd}; }
 function rivalD(t){
-  if(!rival||rival.kind==='fleet') return 0; if(rival.kind==='storm') return sess.stormD; const w=wkById(sess.wk);
+  if(!rival||rival.kind==='fleet') return 0; if(rival.kind==='storm') return sess.stormD; if(rival.kind==='iv') return 0; const w=wkById(sess.wk);
   if(rival.kind==='pace'){ let d=t*500/rival.split; if(w.type==='dist') d=Math.min(d,w.target); return d; }
   const s=rival.s, sm=s.samples; if(t>=s.t) return s.d;
   const i=Math.floor(t); if(i+1>=sm.length) return sm[sm.length-1]||0;
@@ -1179,7 +1251,8 @@ function startSession(){
   if(ftms.on) ftms.dist0=ftms.dist;
   resetWorld(); updateChunks(0);
   fleet.forEach(b=>{ b.g.visible=false; }); fleetState=null;
-  if(rival.kind==='storm'){ gh.g.visible=false; }
+  if(rival.kind==='storm'||rival.kind==='iv'){ gh.g.visible=false; }
+  sess.iv=w.type==='intervals'?{plan:w.plan,i:0,t0:0,d0:0,reps:[],base:recentSplit()||150}:null; if(sess.iv) sess.p10.next=1e9;
   else if(rival.kind==='fleet'){ gh.g.visible=false; setupFleet(w,rival.split); }
   else { gh.g.visible=true; gh.a.p=1; gh.a.drive=false; gh.next=0; setGhostLabel(rival.short); }
   $('wkName').textContent=w.name; ghostLabelHtml();
@@ -1206,7 +1279,7 @@ function finish(complete){
   sess.complete=complete;
   const gD=rival?rivalD(t):0, gap=d-gD;
   let rivalVerdict='';
-  if(rival&&rival.kind!=='storm'){
+  if(rival&&rival.kind!=='storm'&&rival.kind!=='iv'){
     if(w.type==='dist'&&complete){
       const rt=rival.kind==='pace'?w.target/500*rival.split:(rival.s.complete?rival.s.t:Infinity);
       const dt=rt-t; rivalVerdict=isFinite(rt)?(dt>0?'You beat '+rivalName()+' by <b>'+dt.toFixed(1)+' s</b>.':'<b class="bad">'+rivalName(true)+' was '+(-dt).toFixed(1)+' s faster</b>. Next time.'):'';
@@ -1226,6 +1299,8 @@ function finish(complete){
     if(pos===1&&t>60) unlock('fleet1');
     sess.fleetPos=pos;
   } else if(/You beat|ahead<\/b> of/.test(rivalVerdict)) addScore(150,null);
+  if(sess.iv&&sess.iv.reps.length){ const R=sess.iv.reps, avg=R.reduce((a,r)=>a+r.sp,0)/R.length;
+    rivalVerdict='You hit <b>'+R.filter(r=>r.hit).length+' of '+R.length+'</b> targets, averaging '+fmtClock(avg,true)+' per 500 m on the hard pieces.'; }
   if(rival&&rival.kind==='storm'){ rivalVerdict=sess.caught?'The storm caught you after <b>'+fmtM(d)+' m</b>.':'You stopped <b>'+fmtM(Math.max(0,d-sess.stormD))+' m</b> clear of the storm.'; addScore(Math.round(d/5),null); }
   if(complete) addScore(100,null);
   say(complete?pick(['Easy oar. Well rowed.','And easy. Lovely work.','Easy there. Good row.']):pick(['Easy oar.','And easy.']),true); hideP10(); musicStop();
@@ -1236,10 +1311,11 @@ function finish(complete){
     const prev=bestFor(w.id);
     const rec={id:Date.now(),at:Date.now(),wk:w.id,t:+t.toFixed(1),d:Math.round(d),complete,strokes:sess.strokes,
       spm:+(sess.strokes/(t/60)).toFixed(1),samples:sess.samples.map(x=>Math.round(x*10)/10),splits:sess.splits,score:sess.score};
+    if(sess.iv&&sess.iv.reps.length){ rec.reps=sess.iv.reps; rec.avgWork=+(sess.iv.reps.reduce((a,r)=>a+r.sp,0)/sess.iv.reps.length).toFixed(1); }
     let isPb=false;
-    if(prev){ isPb=w.type==='dist'?(complete&&rec.t<prev.t):(rec.d>prev.d); }
-    if(isPb){ unlock('pb'); pbLine=w.type==='dist'?'New personal best, '+(prev.t-rec.t).toFixed(1)+' s faster than before.':'New personal best, '+fmtM(rec.d-prev.d)+' m further than before.'; }
-    else if(!prev&&(complete||w.type!=='dist')) pbLine=w.type==='storm'?'First storm run on record. Beat '+fmtM(rec.d)+' m next time.':'First '+w.name+' on record. This is the ghost to beat next time.';
+    if(prev){ isPb=w.type==='intervals'?(complete&&!!rec.avgWork&&rec.avgWork<prev.avgWork):w.type==='dist'?(complete&&rec.t<prev.t):(rec.d>prev.d); }
+    if(isPb){ unlock('pb'); pbLine=w.type==='intervals'?'New best average, '+(prev.avgWork-rec.avgWork).toFixed(1)+' s faster per 500 m.':w.type==='dist'?'New personal best, '+(prev.t-rec.t).toFixed(1)+' s faster than before.':'New personal best, '+fmtM(rec.d-prev.d)+' m further than before.'; }
+    else if(!prev&&(complete||w.type!=='dist')) pbLine=w.type==='storm'?'First storm run on record. Beat '+fmtM(rec.d)+' m next time.':w.type==='intervals'&&rec.avgWork?'First '+w.name+' on record. Beat an average of '+fmtClock(rec.avgWork,true)+' next time.':'First '+w.name+' on record. This is the ghost to beat next time.';
     store.sessions.push(rec); if(store.sessions.length>60) store.sessions.shift();
     store.lifetime+=rec.d;
     const dk=dayKey(new Date()); if(!store.days.includes(dk)) store.days.push(dk); if(store.days.length>400) store.days.shift();
@@ -1255,13 +1331,23 @@ function finish(complete){
   }
   journeyOffset=null;
   renderDone({w,t,d,complete,rivalVerdict,pbLine,saveable});
-  $('done').hidden=false; releaseWake();
+  releaseWake();
+  const show=()=>{ $('cine').hidden=true; $('done').hidden=false;
   setTimeout(()=>{ const i=$('xpDone'); if(i) i.style.width=i.dataset.w+'%'; },80);
   const lvUp=sess.xp&&sess.xp.L1>sess.xp.L0;
   if((complete&&w.type!=='storm')||lvUp||pbLine.indexOf('New personal')===0||/won the fleet|You beat/.test(rivalVerdict)) celebrate(true);
-  if(lvUp) setTimeout(()=>say('Level up! Level '+sess.xp.L1+'. '+rankOf(sess.xp.L1)+'.',false),1900);
+  if(lvUp) setTimeout(()=>say('Level up! Level '+sess.xp.L1+'. '+rankOf(sess.xp.L1)+'.',false),1900); };
+  let rm=false; try{ rm=matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  if(complete&&!rm){ cine={t:0,dur:2.8,show};
+    $('cineCap').textContent=sess.caught?'Caught by the storm':(w.type==='dist'?'Photo finish':(w.type==='intervals'?'Workout complete':'Easy oar'));
+    $('cine').hidden=false; const f=$('flashfx'); f.className=''; void f.offsetWidth; f.className='go'; shutter(); }
+  else show();
 }
-function rivalName(cap){ if(!rival) return ''; if(rival.kind==='storm') return cap?'The storm':'the storm'; if(rival.kind==='fleet') return cap?'The fleet':'the fleet'; const n=rival.kind==='pace'?'the pace boat':(store.prefs.rival==='best'?'your best':'your last session'); return cap?n[0].toUpperCase()+n.slice(1):n; }
+function shutter(){ if(!ac||!soundOn) return; try{ const n=Math.floor(ac.sampleRate*.05), b=ac.createBuffer(1,n,ac.sampleRate), ch=b.getChannelData(0);
+  for(let i=0;i<n;i++) ch[i]=(Math.random()*2-1)*Math.exp(-i/(n*.15));
+  [0,.07].forEach(dl=>{ const s2=ac.createBufferSource(); s2.buffer=b; const f=ac.createBiquadFilter(); f.type='highpass'; f.frequency.value=2500; const g=ac.createGain(); g.gain.value=.35;
+    s2.connect(f).connect(g).connect(ac.destination); s2.start(ac.currentTime+dl); }); }catch(e){} }
+function rivalName(cap){ if(!rival) return ''; if(rival.kind==='iv') return cap?'Your target':'your target'; if(rival.kind==='storm') return cap?'The storm':'the storm'; if(rival.kind==='fleet') return cap?'The fleet':'the fleet'; const n=rival.kind==='pace'?'the pace boat':(store.prefs.rival==='best'?'your best':'your last session'); return cap?n[0].toUpperCase()+n.slice(1):n; }
 function streak(){ const set=new Set(store.days); let n=0; const d=new Date(); if(!set.has(dayKey(d))) d.setDate(d.getDate()-1);
   while(set.has(dayKey(d))){ n++; d.setDate(d.getDate()-1); } return n; }
 
@@ -1283,6 +1369,7 @@ function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 
 function addScore(n,label){ if(!sess||sess.demo||!n) return; sess.score+=n; if(label) toast(label,'+'+n+' points'); ghostLabelHtml(); }
 function ghostLabelHtml(){ if(!sess||!rival) return; const pts=sess.score?' · <span class="pts">'+fmtM(sess.score)+' pts</span>':'';
+  if(rival.kind==='iv'){ $('ghostLbl').innerHTML=ivLabel()+pts; return; }
   if(rival.kind==='storm'){ $('ghostLbl').innerHTML='Outrun the storm · <b>distance to the storm</b>'+pts; return; }
   if(rival.kind==='fleet'){ const fp=fleetState?fleetPos():{pos:7}; $('ghostLbl').innerHTML='Fleet race · <b>position '+fp.pos+' of 7</b>'+pts; }
   else $('ghostLbl').innerHTML='Racing <b>'+esc(rival.label)+'</b>'+pts; }
@@ -1302,16 +1389,72 @@ function coxTick(w){
   if(w.type==='time'){ const rem=w.target-t;
     [[w.target/2,'Halfway. Hold the rhythm.'],[60,'One minute left.'],[30,'Thirty seconds. Squeeze it up.'],[10,'Ten seconds. Empty the tank!']].forEach(([s,txt],i)=>{ if(rem<=s&&!L['t'+i]){ L['t'+i]=1; say(txt,true); } }); }
   // stopped rowing
-  if(simT-lastStrokeAt>9&&!sess.stopCalled&&mode==='rowing'){ sess.stopCalled=true; say(pick(['Keep it moving. Back on the oars.','Don\'t stop now. Pick it up.','Come on, back to it.']),false); }
+  if(simT-lastStrokeAt>9&&!sess.stopCalled&&mode==='rowing'&&!(sess.iv&&ivSeg()&&ivSeg().k==='rest')){ sess.stopCalled=true; say(pick(['Keep it moving. Back on the oars.','Don\'t stop now. Pick it up.','Come on, back to it.']),false); }
   if(simT-lastStrokeAt<3) sess.stopCalled=false;
   // a technique cue now and then when the cox has been quiet
   if(t>30&&simT-lastStrokeAt<3&&simT-cox.lastSay>50&&simT-cox.lastCue>70){ cox.lastCue=simT; say(pick(CUES),false); }
   // periodic race report
   if(t-cox.lastGap>70&&simT-cox.lastSay>12&&t>40){ cox.lastGap=t;
-    if(rival.kind==='storm') say('The storm is '+Math.round(phys.d-sess.stormD)+' metres back.',false);
+    if(rival.kind==='iv'){ }
+    else if(rival.kind==='storm') say('The storm is '+Math.round(phys.d-sess.stormD)+' metres back.',false);
     else if(rival.kind==='fleet'){ const fp=fleetPos(); say(fp.pos===1?'You are leading. '+(fp.behind?Math.round(fp.bd)+' metres clear.':''):'Position '+fp.pos+'. '+fp.next.name+' is '+Math.round(fp.nd)+' metres ahead.',false); }
     else { const gap=phys.d-rivalD(t); say(Math.abs(gap)<2?'Dead level with '+rivalName()+'.':(gap>0?'Up '+Math.round(gap)+' metres on '+rivalName()+'.':'Down '+Math.round(-gap)+' metres. Lift the rate for ten.'),false); } }
 }
+
+function checkWild(){
+  if(!sess||mode!=='rowing'||!sess.started) return;
+  for(const [,g] of chunks){ const wl=g.userData.wild; if(!wl) continue;
+    for(const w of wl){ const a=w.d-phys.d; if(!w.seen&&a<55&&a>-10){ w.seen=1; spotAnimal(w); } } }
+}
+function spotAnimal(w){
+  if(sess.demo) return; const info=WILD[w.kind], first=!store.wild[w.kind], sd=w.side<0?'left':'right';
+  store.wild[w.kind]=(store.wild[w.kind]||0)+1; save(); sess.spotted=sess.spotted||[]; if(!sess.spotted.includes(w.kind)) sess.spotted.push(w.kind);
+  if(first){ addScore(info.pts,null); toast('New in your field guide: '+info.name,info.rar+' · +'+info.pts,'+'); chime();
+    say(pick([info.name+' on the '+sd+'! A new one for the field guide.','Look, on the '+sd+'. '+info.name+'! That one is new.']),true);
+    if(WILD_ORDER.every(k=>store.wild[k])) unlock('wild8'); }
+  else if(info.rar!=='Common'){ addScore(Math.round(info.pts/4),null); say(pick([info.name+' on the '+sd+'.','Look, '+info.name.toLowerCase()+' on the '+sd+' bank.']),false); }
+}
+function renderWild(){
+  const n=WILD_ORDER.filter(k=>store.wild[k]).length; $('wildCount').textContent=n+' of '+WILD_ORDER.length+' spotted';
+  $('wildGrid').innerHTML=WILD_ORDER.map(k=>{ const w=WILD[k], c=store.wild[k]||0;
+    return '<div class="wc '+(c?'seen':'unseen')+'"><b>'+(c?esc(w.name):'Not seen yet')+'</b><small>'+w.rar+(c?' · seen '+c+'×':(w.where?' · '+w.where:''))+'</small></div>'; }).join('');
+}
+
+/* ================= intervals ================= */
+function ivSeg(){ return sess&&sess.iv?sess.iv.plan[sess.iv.i]:null; }
+function ivTarget(seg){ return Math.round(sess.iv.base-seg.off); }
+function ivRepNo(){ let n=0; for(let k=0;k<=sess.iv.i&&k<sess.iv.plan.length;k++) if(sess.iv.plan[k].k==='work') n++; return n; }
+function ivReps(){ return sess.iv.plan.filter(x=>x.k==='work').length; }
+const fmtRest=t=>t>=60?(t%60?Math.floor(t/60)+' minute '+t%60:(t/60)+' minute'+(t>=120?'s':'')):t+' seconds';
+function ivPaceCall(){ const iv=sess.iv, seg=ivSeg(), el=sess.t-iv.t0, dd=phys.d-iv.d0, cur=dd>5?500*el/dd:999; return cur<=ivTarget(seg)?'On target. Hold it.':'Off target. Squeeze it up.'; }
+function ivStartSeg(){ const iv=sess.iv, seg=ivSeg(); iv.t0=sess.t; iv.d0=phys.d; iv.half=iv.c100=iv.c10=iv.b1=iv.b2=iv.b3=0;
+  if(seg.k==='work'){ const n=ivRepNo(), N=ivReps(); say((n===N?'Last one! ':'Rep '+n+'. ')+(seg.d?seg.d+' metres':fmtRest(seg.t))+', target '+saySplit(ivTarget(seg))+'. Go!',true); chime(); }
+  else say(pick(['Easy. Breathe.','And rest. Good work.','Paddle light. Recover.'])+' '+fmtRest(seg.t)+'.',true);
+  ghostLabelHtml(); }
+function ivEndWork(seg,el,dd){ const iv=sess.iv, sp=dd>1?500*el/dd:999, tg=ivTarget(seg), hit=sp<=tg+.05;
+  iv.reps.push({sp:+sp.toFixed(1),tg,hit});
+  if(hit){ addScore(100,null); ding(false); } gatePop('Rep '+iv.reps.length+' · '+fmtClock(sp,true),hit);
+  toast('Rep '+iv.reps.length+(hit?' on target':' done'),fmtClock(sp,true)+' /500 m · target '+fmtClock(tg)); ivNext(); }
+function ivNext(){ const iv=sess.iv; iv.i++; if(iv.i>=iv.plan.length){ if(iv.reps.length&&iv.reps.every(r=>r.hit)) unlock('ivall'); finish(true); return; } ivStartSeg(); }
+function ivTick(){
+  const iv=sess.iv; if(!iv.on){ iv.on=1; ivStartSeg(); }
+  const seg=ivSeg(); if(!seg) return; const el=sess.t-iv.t0, dd=phys.d-iv.d0;
+  if(seg.k==='work'){ const left=seg.d?seg.d-dd:seg.t-el;
+    if(seg.d){ if(left<=100&&!iv.c100){ iv.c100=1; say(pick(['Last hundred! Empty it!','Hundred to go. Lift!']),true); } else if(dd>=seg.d/2&&!iv.half){ iv.half=1; say('Halfway. '+ivPaceCall(),false); } }
+    else { if(left<=10&&!iv.c10){ iv.c10=1; say('Ten seconds! Everything!',true); } else if(el>=seg.t/2&&!iv.half&&seg.t>=90){ iv.half=1; say('Halfway. '+ivPaceCall(),false); } }
+    if(left<=0) ivEndWork(seg,el,dd);
+  } else { const left=seg.t-el;
+    if(left<=10&&!iv.c10){ iv.c10=1; say('Ten seconds. Sit ready.',true); }
+    const b=Math.ceil(left); if(left>0&&b<=3&&!iv['b'+b]){ iv['b'+b]=1; tick(); }
+    if(left<=0) ivNext(); }
+}
+function ivLabel(){ const seg=ivSeg(); if(!seg) return 'Intervals';
+  return seg.k==='work'?'Rep '+ivRepNo()+' of '+ivReps()+' · target <b>'+fmtClock(ivTarget(seg))+'</b>':'Rest · next up: rep '+(ivRepNo()+1)+' of '+ivReps(); }
+function ivHud(){ const iv=sess.iv, seg=ivSeg(), el=$('gap'); if(!seg) return; const t=sess.t-iv.t0, dd=phys.d-iv.d0;
+  if(seg.k==='work'){ const cur=dd>5?500*t/dd:Infinity, tg=ivTarget(seg); el.textContent=fmtSplit(cur); el.className=cur===Infinity?'':(cur<=tg?'ahead':'behind');
+    $('gMe').style.left=clamp(4+(seg.d?dd/seg.d:t/seg.t)*92,4,96)+'%'; }
+  else { el.textContent=fmtClock(Math.max(0,seg.t-t)); el.className=''; $('gMe').style.left=clamp(4+t/seg.t*92,4,96)+'%'; }
+  $('gGhost').style.left='96%'; ghostLabelHtml(); }
 
 /* ================= HUD ================= */
 function progText(){
@@ -1320,6 +1463,8 @@ function progText(){
   if(w.type==='dist') return fmtM(Math.max(0,w.target-phys.d))+' m to go';
   if(w.type==='time') return fmtClock(Math.max(0,w.target-sess.t))+' left';
   if(w.type==='storm') return 'Survived '+fmtClock(sess.t);
+  if(w.type==='intervals'){ const seg=ivSeg(); if(!seg) return 'Workout done'; const el=sess.t-sess.iv.t0, dd=phys.d-sess.iv.d0;
+    return seg.k==='work'?(seg.d?fmtM(Math.max(0,seg.d-dd))+' m to go':fmtClock(Math.max(0,seg.t-el))+' left'):'Rest · '+fmtClock(Math.max(0,seg.t-el)); }
   const nx=Math.ceil((phys.d+1)/500)*500; return fmtM(nx-phys.d)+' m to '+kmText(nx);
 }
 let hudAcc=0;
@@ -1332,7 +1477,7 @@ function updateHud(force){
   $('time').textContent=fmtClock(sess.t);
   $('spm').textContent=Math.round(ftms.on&&ftms.spm?ftms.spm:curSpm());
   $('watts').textContent=Math.round(ftms.on&&ftms.power>0?ftms.power:2.8*v*v*v);
-  let p=0; if(w.type==='dist') p=phys.d/w.target; else if(w.type==='time') p=sess.t/w.target; else if(w.type==='storm') p=clamp((phys.d-sess.stormD)/200,0,1); else p=(phys.d%500)/500;
+  let p=0; if(w.type==='dist') p=phys.d/w.target; else if(w.type==='time') p=sess.t/w.target; else if(w.type==='storm') p=clamp((phys.d-sess.stormD)/200,0,1); else if(w.type==='intervals'&&sess.iv){ const seg=ivSeg(), el=sess.t-sess.iv.t0, dd=phys.d-sess.iv.d0; p=(sess.iv.i+(seg?clamp(seg.d?dd/seg.d:el/seg.t,0,1):0))/sess.iv.plan.length; } else p=(phys.d%500)/500;
   $('progFill').style.width=clamp(p*100,0,100)+'%';
   const chip=$('gateChip');
   if(gates.length){ chip.hidden=false; const L=sess.g.live;
@@ -1341,7 +1486,8 @@ function updateHud(force){
       chip.textContent='Gates '+sess.g.hit+'/'+sess.g.n+(sess.g.combo>1?' · ×'+Math.min(sess.g.combo,5)+' combo':(nx?' · next in '+fmtM(nx.d-phys.d)+' m':'')); } }
   else chip.hidden=true;
   $('progTxt').textContent=progText();
-  if(rival&&rival.kind==='storm'){ const gap=phys.d-sess.stormD, el=$('gap');
+  if(rival&&rival.kind==='iv'){ ivHud(); }
+  else if(rival&&rival.kind==='storm'){ const gap=phys.d-sess.stormD, el=$('gap');
     el.textContent=Math.max(0,gap).toFixed(0)+' m'; el.className=gap>100?'ahead':(gap<50?'behind':'');
     $('gMe').style.left=clamp(12+gap/200*80,6,96)+'%'; $('gGhost').style.left='4%'; ghostLabelHtml();
   } else if(rival&&rival.kind==='fleet'&&fleetState){
@@ -1363,10 +1509,12 @@ function updateHud(force){
 /* ================= main loop ================= */
 const camPos=new THREE.Vector3(0,4,12), camLook=new THREE.Vector3(), tPos=new THREE.Vector3(), tLook=new THREE.Vector3();
 let last=performance.now();
+let cine=null;
 function frame(now){
   requestAnimationFrame(frame);
   let dt=(now-last)/1000; last=now; dt=Math.min(dt,.05);
   if(mode==='paused'){ renderer.render(scene,camera); return; }
+  const realDt=dt; if(cine){ cine.t+=realDt; dt*=.28; if(cine.t>=cine.dur){ const f=cine.show; cine=null; f(); } }
   simT+=dt; waterMat.uniforms.uT.value=simT;
 
   // autopilot: always on the dock screen, optional while rowing
@@ -1404,7 +1552,7 @@ function frame(now){
     while(sess.nextDistAch<DIST_ACH.length&&phys.d>=DIST_ACH[sess.nextDistAch][0]){ unlock(DIST_ACH[sess.nextDistAch][1]); sess.nextDistAch++; }
     const split=phys.v>.3?500/phys.v:999;
     if(split<120){ sess.sub2+=phys.v*dt; if(sess.sub2>=250) unlock('sub2'); } else sess.sub2=0;
-    if(rival&&rival.kind!=='fleet'&&rival.kind!=='storm'&&sess.t>6){ const gap=phys.d-rivalD(sess.t), sg=gap>1.5?1:(gap<-1.5?-1:sess.gapSign);
+    if(rival&&rival.kind!=='fleet'&&rival.kind!=='storm'&&rival.kind!=='iv'&&sess.t>6){ const gap=phys.d-rivalD(sess.t), sg=gap>1.5?1:(gap<-1.5?-1:sess.gapSign);
       if(sess.gapSign!==0&&sg!==sess.gapSign){ toast(sg>0?'You passed '+rivalName():rivalName(true)+' passed you',sg>0?'Hold that rhythm':'Lift the rate for ten'); say(sg>0?'You have taken '+rivalName()+'. Hold that rhythm.':rivalName(true)+' has gone past. Lift the rate for ten!',true); } sess.gapSign=sg; }
     if(fleetState&&sess.t>3) fleetState.forEach((b,i)=>{ const g=phys.d-fleetD(i,sess.t), sg=g>2?1:(g<-2?-1:b.sign);
       if(b.sign!==0&&sg!==b.sign){ if(sg>0){ const fp=fleetPos(); addScore(100,'You passed '+b.name); say('That\'s '+b.name+'. Position '+fp.pos+'.',true); } else { toast(b.name+' passed you','Hold them off'); say(b.name+' coming through. Hold them off!',true); } }
@@ -1418,6 +1566,8 @@ function frame(now){
       sess.jReached=(sess.jReached||[]).concat(st.name); sess.jNext=jNextStop(j,st.km*1000); }
     checkChallenge(false);
     coxTick(w);
+    if(sess.iv) ivTick();
+    checkWild();
     if(sess.storm){ const age=sess.t, f=age<240?.75+.35*age/240:1.1+.08*(age-240)/60; sess.stormD+=sess.stormVb*f*dt;
       const gap=phys.d-sess.stormD, lv=gap<20?3:gap<50?2:gap<100?1:0, pv=sess.stormLv||0;
       if(lv>pv) say(['','Storm closing. A hundred metres behind.','Fifty metres! Lift the rate!','It is right behind you! Everything!'][lv],true);
@@ -1448,11 +1598,12 @@ function frame(now){
 
   // camera
   const yaw=me.g.rotation.y, fx=-Math.sin(yaw), fz=-Math.cos(yaw), rx=Math.cos(yaw), rz=-Math.sin(yaw), bp=me.g.position;
-  if(camMode===0){ tPos.set(bp.x-fx*9+rx*1.6, 3.1, bp.z-fz*9+rz*1.6); tLook.set(bp.x+fx*14+rx*1.5, .6, bp.z+fz*14+rz*1.5); }
+  if(cine){ const a=-1.1+cine.t/cine.dur*2.0; tPos.set(bp.x+rx*Math.cos(a)*8+fx*Math.sin(a)*8,2.2,bp.z+rz*Math.cos(a)*8+fz*Math.sin(a)*8); tLook.set(bp.x,.7,bp.z); }
+  else if(camMode===0){ tPos.set(bp.x-fx*9+rx*1.6, 3.1, bp.z-fz*9+rz*1.6); tLook.set(bp.x+fx*14+rx*1.5, .6, bp.z+fz*14+rz*1.5); }
   else if(camMode===1){ tPos.set(bp.x-rx*10-fx*2, 2.4, bp.z-rz*10-fz*2); tLook.set(bp.x+rx*2+fx*3, .5, bp.z+rz*2+fz*3); }
   else if(camMode===2){ tPos.set(bp.x-fx*18+rx*3, 15, bp.z-fz*18+rz*3); tLook.set(bp.x+fx*20+rx*2, 0, bp.z+fz*20+rz*2); }
   else { tPos.set(bp.x+fx*14+rx*1.4, 4.6, bp.z+fz*14+rz*1.4); tLook.set(bp.x-fx*30, .8, bp.z-fz*30); }
-  const k=1-Math.exp(-dt*3); camPos.lerp(tPos,k); camLook.lerp(tLook,k);
+  const k=1-Math.exp(-(cine?realDt*5:dt*3)); camPos.lerp(tPos,k); camLook.lerp(tLook,k);
   camera.position.copy(camPos); camera.lookAt(camLook);
   sky.position.copy(camera.position);
   water.position.set(Math.round(camPos.x/50)*50,0,Math.round(camPos.z/50)*50);
@@ -1612,12 +1763,12 @@ function renderRank(){
   let cur=LIVERIES.find(l=>l.id===store.prefs.livery)||LIVERIES[0]; if(L<cur.lvl) cur=LIVERIES[0]; $('livName').textContent=cur.name;
 }
 function renderHome(){
-  const p=store.prefs; renderJourney(); renderRank(); renderChallenge();
+  const p=store.prefs; renderJourney(); renderWild(); renderRank(); renderChallenge();
   $('musSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.music)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.music=b.dataset.v==='1'; save(); renderHome(); }; });
   $('scenSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',(p.scenery||'auto')===b.dataset.s); b.onclick=()=>{ p.scenery=b.dataset.s; save(); setScenery(true); renderHome(); }; });
   $('gateSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.gates)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.gates=b.dataset.v==='1'; save(); renderHome(); }; });
   $('wks').innerHTML=WORKOUTS.map(w=>{ const b=bestFor(w.id);
-    const pb=b?(w.type==='dist'?'Best '+fmtClock(b.t,true):(w.type==='time'?'Best '+fmtM(b.d)+' m':'Longest '+fmtM(b.d)+' m')):'No result yet';
+    const pb=b?(w.type==='intervals'?'Best avg '+fmtClock(b.avgWork,true):w.type==='dist'?'Best '+fmtClock(b.t,true):(w.type==='time'?'Best '+fmtM(b.d)+' m':'Longest '+fmtM(b.d)+' m')):'No result yet';
     return '<button type="button" class="wkbtn" data-w="'+w.id+'" aria-pressed="'+(p.wk===w.id)+'"><span class="n">'+w.name+'</span><span class="s">'+w.sub+'</span><span class="pb">'+pb+'</span></button>'; }).join('');
   $('wks').querySelectorAll('button').forEach(b=>b.onclick=()=>{ p.wk=b.dataset.w; save(); renderHome(); });
   $('rivals').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',p.rival===b.dataset.r); b.onclick=()=>{ p.rival=b.dataset.r; save(); renderHome(); }; });
@@ -1629,7 +1780,7 @@ function renderHome(){
   $('coxSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.cox)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.cox=b.dataset.v==='1'; save(); renderHome(); if(p.cox){ audioInit(); say('Cox here. Ready when you are.',true); } }; });
   $('beatSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.beat)===b.dataset.v); b.onclick=()=>{ p.beat=+b.dataset.v; save(); renderHome(); }; });
   const r=resolveRival();
-  $('rivalNote').textContent=r.kind==='storm'?'In this piece the storm is your opponent. It starts 80 m behind and keeps speeding up.':r.kind==='fleet'?('Six crews spread out ahead, rowing around your '+fmtClock(r.split)+' pace. Reel them in one by one.'):r.kind==='session'?('Your ghost: '+r.label.toLowerCase()+'. It replays that row second by second.'):(r.fallback?'No '+wkById(p.wk).name+' on record yet, so a pace boat stands in. Row one and it becomes your ghost.':'A steady boat holding the split above, all the way.');
+  $('rivalNote').textContent=r.kind==='iv'?'Each hard piece has a target split based on your recent rows. Paddle easy in between.':r.kind==='storm'?'In this piece the storm is your opponent. It starts 80 m behind and keeps speeding up.':r.kind==='fleet'?('Six crews spread out ahead, rowing around your '+fmtClock(r.split)+' pace. Reel them in one by one.'):r.kind==='session'?('Your ghost: '+r.label.toLowerCase()+'. It replays that row second by second.'):(r.fallback?'No '+wkById(p.wk).name+' on record yet, so a pace boat stands in. Row one and it becomes your ghost.':'A steady boat holding the split above, all the way.');
   $('kStreak').textContent=streak(); $('kLife').textContent=fmtM(store.lifetime); $('kSess').textContent=store.sessions.filter(s=>!s.demo).length;
   $('achs').innerHTML=ACH.map(a=>{ const on=!!store.unlocked[a.id];
     return '<div class="ach'+(on?' on':'')+'" title="'+esc(a.desc)+'"><div class="medal'+(on?'':' locked')+'">'+a.code+'</div><small>'+a.name+'</small></div>'; }).join('');
@@ -1670,7 +1821,7 @@ function xpHtml(){ const x=sess.xp; if(!x) return ''; const L=x.L1, a=LEVEL_XP(L
     (x.L1>x.L0?'<div class="lvlup">Level up! You reached level '+L+'.'+(x.newLiv.length?' New boat colours: '+esc(x.newLiv.map(l=>l.name).join(', '))+'.':'')+'</div>':'')+'</div>'; }
 function renderDone(r){
   const avgSplit=r.d>0?r.t/(r.d/500):Infinity, spm=r.t>0?sess.strokes/(r.t/60):0, v=r.t>0?r.d/r.t:0;
-  const title=r.w.type==='storm'?'Survived '+fmtM(r.d)+' m · '+fmtClock(r.t):(r.w.type==='dist'&&r.complete?r.w.name+' in '+fmtClock(r.t,true):(r.w.type==='time'&&r.complete?fmtM(r.d)+' m in '+r.w.name:fmtM(r.d)+' m in '+fmtClock(r.t)));
+  const title=r.w.type==='intervals'?r.w.name+(sess.iv&&sess.iv.reps.length?' · '+sess.iv.reps.filter(x=>x.hit).length+' of '+sess.iv.reps.length+' on target':''):r.w.type==='storm'?'Survived '+fmtM(r.d)+' m · '+fmtClock(r.t):(r.w.type==='dist'&&r.complete?r.w.name+' in '+fmtClock(r.t,true):(r.w.type==='time'&&r.complete?fmtM(r.d)+' m in '+r.w.name:fmtM(r.d)+' m in '+fmtClock(r.t)));
   const newA=sess.newAch.map(id=>ACH.find(a=>a.id===id)).filter(Boolean);
   $('result').innerHTML=
     '<div class="lbl">'+(r.complete?'Piece complete':'Session ended')+'</div><h2>'+esc(title)+'</h2>'+
@@ -1681,6 +1832,8 @@ function renderDone(r){
       (sess.jReached&&sess.jReached.length?'. Reached '+esc(sess.jReached.join(', '))+'.':'.')+(sess.jLine.next?' Next stop: '+esc(sess.jLine.next.name)+' in '+toGo(sess.jLine.next.km*1000-sess.jLine.after)+'.':' Journey complete!')+'</div>':'')+
     (sess.score||sess.g.n?'<div class="lbl">Score · <span style="color:var(--amber)">'+fmtM(sess.score)+' points</span>'+(sess.g.n?' · gates '+sess.g.hit+' of '+sess.g.n+(sess.g.best>1?', best combo '+sess.g.best:''):'')+'</div>':'')+
     '<div class="rk"><div><b>'+fmtSplit(avgSplit)+'</b><span>avg /500 m</span></div><div><b>'+spm.toFixed(1)+'</b><span>avg s/m</span></div><div><b>'+Math.round(2.8*v*v*v)+'</b><span>avg watts</span></div><div><b>'+sess.strokes+'</b><span>strokes</span></div></div>'+
+    (sess.iv&&sess.iv.reps.length?'<div class="lbl">Reps</div><div class="reps">'+sess.iv.reps.map((x,i)=>'<div class="rep '+(x.hit?'hit':'miss')+'"><b>'+fmtClock(x.sp,true)+'</b><span>Rep '+(i+1)+' · target '+fmtClock(x.tg)+'</span></div>').join('')+'</div>':'')+
+    (sess.spotted&&sess.spotted.length?'<div class="jfact">Spotted on the water: '+esc(sess.spotted.map(k=>WILD[k].name).join(', '))+'.</div>':'')+
     '<div class="lbl">Splits</div><div class="chart">'+splitChart(sess.splits)+'</div>'+
     (newA.length?'<div class="lbl">Milestones unlocked</div><div class="newach">'+newA.map(a=>'<div class="ach on"><div class="medal">'+a.code+'</div><div><div style="font-weight:600">'+a.name+'</div><small>'+a.desc+'</small></div></div>').join('')+'</div>':'')+
     '<div class="btns"><button class="go" type="button" id="bAgain">Row it again</button><button class="ghostbtn" type="button" id="bHome">Back to the dock</button></div>';
