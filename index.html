@@ -215,6 +215,15 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 #count .evintro{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:0 24px}
 #count .evt,#count .evg{font-family:var(--ui);font-size:18px;letter-spacing:.1em;font-weight:600;text-transform:none}
 #count .evn{font-size:clamp(40px,7vw,88px);line-height:1}
+.flow{height:4px;border-radius:2px;background:rgba(255,255,255,.1);margin-top:6px;overflow:hidden}
+.flow i{display:block;height:100%;width:0;background:var(--ghost);transition:width .4s}
+.split.zone{border-color:var(--amber);box-shadow:0 0 0 2px rgba(242,178,92,.35),0 0 30px rgba(242,178,92,.25)} .split.zone .flow i{background:var(--amber)}
+.shop{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.item{text-align:left;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.item b{font-weight:600} .item small{font-size:12px;color:var(--dim)}
+.item.wearing{border-color:var(--amber);background:rgba(242,178,92,.1)} .item.wearing small{color:var(--amber)}
+.item.pending{border-color:var(--good)} .item.pending small{color:var(--good)} .item.poor small{color:var(--bad)}
+.coinln{font-size:13px;color:var(--amber)}
 .jroute svg{display:block;width:100%;height:auto}
 .jmeta{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--dim);flex-wrap:wrap}
 .jmeta b{font-family:var(--num);font-size:22px;color:var(--mist);font-weight:600;font-variant-numeric:tabular-nums}
@@ -255,10 +264,11 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
       <div class="prog"><i id="progFill"></i></div>
       <div class="sub" id="progTxt">Take your first stroke</div>
     </div>
-    <div class="panel split">
+    <div class="panel split" id="splitPanel">
       <div class="big" id="split">–:––</div>
       <div class="lbl">split / 500 m</div>
       <div class="gatechip" id="gateChip" hidden></div>
+      <div class="flow" aria-hidden="true"><i id="flowFill"></i></div>
     </div>
     <div class="panel stats">
       <div><b id="dist">0</b><span>meters</span></div>
@@ -347,9 +357,14 @@ button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
     <div class="panel card sect">
       <div class="lbl">Rank</div>
       <div class="rank"><div class="lvl" id="lvlBadge">1</div>
-        <div class="rinfo"><b id="rankName">Novice</b><div class="prog"><i id="xpFill"></i></div><small id="xpTxt"></small></div></div>
+        <div class="rinfo"><b id="rankName">Novice</b><div class="prog"><i id="xpFill"></i></div><small id="xpTxt"></small><small id="coinTxt" class="coinln"></small></div></div>
       <div class="lbl">Your boat · <span id="livName" style="color:var(--mist)"></span></div>
       <div class="liveries" id="liveries"></div>
+    </div>
+    <div class="panel card sect">
+      <div class="lbl">Boat shop · <span id="shopCoins" style="color:var(--amber)"></span></div>
+      <div class="seg" id="shopTabs"></div>
+      <div class="shop" id="shopGrid"></div>
     </div>
     <div class="panel card sect" id="journeyCard">
       <div class="lbl">Journey</div>
@@ -414,6 +429,8 @@ function loadStore(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null')
   return {v:1,sessions:[],lifetime:0,unlocked:{},days:[],prefs:{wk:'2k',rival:'best',pace:130}}; }
 const store=loadStore();
 store.prefs=Object.assign({wk:'2k',rival:'best',pace:130,cond:'auto',cox:true,beat:0,journey:'gota',gates:true,livery:'stillwater',music:true,scenery:'auto'},store.prefs||{});
+if(store.coins===undefined) store.coins=Math.round((store.xp||0)/2); store.owned=store.owned||{};
+store.prefs.equip=Object.assign({hat:'',pet:'',trail:'',flag:''},store.prefs.equip||{});
 store.season=store.season||{}; store.wild=store.wild||{}; store.xp=store.xp||0; store.chal=store.chal||{};
 store.journeys=store.journeys||{};
 function save(){ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} }
@@ -445,6 +462,7 @@ const ACH=[
   {id:'fleet1', code:'1st', name:'Head of the river', desc:'Win a fleet race'},
   {id:'voyage', code:'J', name:'Voyager', desc:'Complete a whole journey'},
   {id:'storm5', code:'S5', name:'Weathered it', desc:'Outrun the storm for 5 minutes'},
+  {id:'zone', code:'Z', name:'In the zone', desc:'Reach full rhythm flow'},
   {id:'season1', code:'S1', name:'Season champion', desc:'Earn a medal in every regatta event'},
   {id:'season3', code:'24', name:'Perfect season', desc:'Gold in every regatta event'},
   {id:'ivall', code:'IV', name:'Every rep', desc:'Hit the target on every interval'},
@@ -480,6 +498,18 @@ const SEASON=[
   SEASON.forEach(e=>WORKOUTS.push(Object.assign({id:e.id,name:e.name,sub:e.place,hidden:true},EW[e.id]))); }
 const starStr=n=>'<span class="on">'+'★'.repeat(n)+'</span><span class="off">'+'★'.repeat(3-n)+'</span>';
 function evUnlocked(i){ return i===0||((store.season[SEASON[i-1].id]||{}).stars||0)>0; }
+const SHOP=[
+  {id:'cap',cat:'hat',name:'Club cap',price:300},{id:'straw',cat:'hat',name:'Straw hat',price:500},{id:'viking',cat:'hat',name:'Viking helmet',price:1500},{id:'crown',cat:'hat',name:'Crown',price:4000},
+  {id:'duck',cat:'pet',name:'Rubber duck',price:400},{id:'dog',cat:'pet',name:'Boat dog',price:1200},{id:'cat',cat:'pet',name:'Ship\'s cat',price:1200},
+  {id:'swe',cat:'flag',name:'Swedish flag',price:300},{id:'cheq',cat:'flag',name:'Chequered flag',price:600},{id:'pirate',cat:'flag',name:'Pirate flag',price:900},
+  {id:'sparkle',cat:'trail',name:'Sparkle wake',price:800},{id:'gold',cat:'trail',name:'Golden wake',price:2000},{id:'rainbow',cat:'trail',name:'Rainbow wake',price:3000}];
+const CATS=[['hat','Hats'],['pet','Crew'],['flag','Flags'],['trail','Wake']];
+const FACTS=['Göta kanal took 22 years to build and opened in 1832.','Around 58,000 soldiers helped dig Göta kanal.',
+  'The Stockholm archipelago has around 30,000 islands, skerries and rocks.','The first Oxford and Cambridge Boat Race was rowed in 1829.',
+  'Rowers sit facing backwards, so the finish line is always behind you.','Lake Vänern is the largest lake in the European Union.',
+  'Rowing was on the programme at the first modern Olympics in 1896, but bad weather cancelled it.','Falu red paint comes from the old copper mine in Falun.',
+  'A white-tailed eagle can have a wingspan of more than two metres.','Moose are strong swimmers and can cross wide lakes.',
+  'Most of the power in a rowing stroke comes from the legs.','Allemansrätten, the right of public access, lets everyone roam the Swedish countryside.'];
 function hashStr(t){ let h=2166136261; for(let i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
 const DIST_ACH=[[100,'d100'],[500,'d500'],[1000,'d1k'],[2000,'d2k'],[5000,'d5k'],[10000,'d10k']];
 const GATES=[500,1000,2000,5000,10000];
@@ -731,6 +761,39 @@ const WILD={swan:{name:'Mute swan',rar:'Common',pts:10},heron:{name:'Grey heron'
   fox:{name:'Red fox',rar:'Uncommon',pts:40},seal:{name:'Grey seal',rar:'Uncommon',pts:40,where:'archipelago'},eagle:{name:'White-tailed eagle',rar:'Rare',pts:80},
   beaver:{name:'Beaver',rar:'Rare',pts:80,where:'forest river'},moose:{name:'Moose',rar:'Rare',pts:100,where:'forest river'}};
 const WILD_ORDER=['swan','heron','deer','fox','seal','eagle','beaver','moose'];
+const MCOL=c=>new THREE.MeshLambertMaterial({color:c});
+const GLASS=new THREE.MeshLambertMaterial({color:0x3c8c5a,transparent:true,opacity:.85}), CORK=MCOL(0x9a7650), PAPER=MCOL(0xf3ead2), STAND=MCOL(0x8a8f94), STAND2=MCOL(0x5d6a74);
+function makeBottle(msg){ const g=new THREE.Group(), b=new THREE.Group();
+  b.add(part(GEO.cyl,GLASS,.08,.32,.08,0,0,0)); b.add(part(GEO.cyl,GLASS,.035,.1,.035,0,.2,0)); b.add(part(GEO.cyl,CORK,.03,.05,.03,0,.27,0)); if(msg) b.add(part(GEO.cyl,PAPER,.05,.2,.05,0,0,0));
+  b.rotation.z=1.25; g.add(b); return g; }
+function makeStand(m){ const g=new THREE.Group(), rnd=mulberry(m*7+3);
+  g.position.set(cx(m)+(W/2+6),meshY(m,6,1)-.2,-m); g.rotation.y=-Math.atan(dcx(m))-Math.PI/2;
+  for(let r=0;r<3;r++) g.add(part(GEO.box,r%2?STAND2:STAND,26,.8+r*.9,2.2,0,(.8+r*.9)/2,-r*2.2));
+  const ppl=[]; for(let r=0;r<3;r++) for(let i=0;i<14;i++){ tmpC.setHSL(rnd(),.55,.5); ppl.push({x:-12+i*1.8+(rnd()-.5)*.6,y:.8+r*.9,z:-r*2.2,col:tmpC.clone()}); }
+  g.add(instanced(GEO.cyl,MAT.tint,ppl,(t,o)=>{o.position.set(t.x,t.y+.35,t.z);o.scale.set(.22,.7,.22);o.rotation.set(0,0,0);}));
+  const skin=new THREE.Color(0xd8a888); g.add(instanced(GEO.sph,MAT.tint,ppl.map(q=>({x:q.x,y:q.y,z:q.z,col:skin})),(t,o)=>{o.position.set(t.x,t.y+.85,t.z);o.scale.set(.14,.14,.14);o.rotation.set(0,0,0);}));
+  for(const x of [-13,0,13]){ g.add(part(GEO.cyl,WHITE,.05,3.5,.05,x,4.2,-5)); const fl=new THREE.Mesh(flagGeo,flagMat); fl.position.set(x+.9,5.6,-5); g.add(fl); }
+  return g; }
+function makeHat(id){ const g=new THREE.Group();
+  if(id==='cap'){ const m=MCOL(0xc8302b); g.add(part(GEO.cyl,m,.13,.07,.13,0,.84,0)); g.add(part(GEO.box,m,.17,.015,.13,0,.815,.13)); }
+  if(id==='straw'){ const m=MCOL(0xd9b56b); g.add(part(GEO.cyl,m,.25,.02,.25,0,.82,0)); g.add(part(GEO.cyl,m,.12,.09,.12,0,.87,0)); g.add(part(GEO.cyl,MCOL(0x2c3436),.123,.025,.123,0,.845,0)); }
+  if(id==='viking'){ g.add(part(GEO.sph,MCOL(0x8d9297),.135,.1,.135,0,.8,0)); for(const sx of [-1,1]){ const h=part(GEO.cone,MCOL(0xf1eee6),.03,.17,.03,sx*.15,.85,0); h.rotation.z=-sx*.9; g.add(h); } }
+  if(id==='crown'){ const m=MCOL(0xf2c14e); g.add(part(GEO.cyl,m,.12,.07,.12,0,.86,0)); for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; g.add(part(GEO.cone,m,.025,.07,.025,Math.cos(a)*.11,.89,Math.sin(a)*.11)); } }
+  return g; }
+function makePet(id){ const g=new THREE.Group();
+  if(id==='dog'){ const m=MCOL(0x8a5a3a), d=MCOL(0x3a2a20); g.add(part(GEO.sph,m,.12,.11,.19,0,.22,0)); g.add(part(GEO.sph,m,.085,.08,.09,0,.34,.15)); g.add(part(GEO.sph,d,.03,.03,.03,0,.33,.24));
+    for(const sx of [-1,1]) g.add(part(GEO.sph,d,.03,.06,.02,sx*.07,.36,.13)); g.add(part(GEO.cyl,m,.02,.14,.02,0,.28,-.2,-.8)); g.position.z=1.7; }
+  if(id==='cat'){ const m=MCOL(0x7b7f85); g.add(part(GEO.sph,m,.1,.11,.16,0,.22,0)); g.add(part(GEO.sph,m,.075,.07,.07,0,.35,.11));
+    for(const sx of [-1,1]) g.add(part(GEO.cone,m,.025,.06,.02,sx*.04,.4,.11)); g.add(part(GEO.cyl,m,.018,.26,.018,0,.36,-.17,-.3)); g.position.z=1.7; }
+  if(id==='duck'){ const m=MCOL(0xf4d03f); g.add(part(GEO.sph,m,.16,.13,.2,0,.2,0)); g.add(part(GEO.sph,m,.09,.09,.09,0,.36,-.1)); g.add(part(GEO.cone,MCOL(0xe8743a),.03,.08,.03,0,.35,-.2,-Math.PI/2)); g.position.z=-2.6; }
+  return g; }
+function flagTexFor(id){ if(id==='swe') return makeFlagTex(); const c=document.createElement('canvas'); c.width=96; c.height=60; const g=c.getContext('2d');
+  if(id==='cheq') for(let x=0;x<8;x++) for(let y=0;y<5;y++){ g.fillStyle=(x+y)%2?'#111111':'#f4f4f4'; g.fillRect(x*12,y*12,12,12); }
+  if(id==='pirate'){ g.fillStyle='#111111'; g.fillRect(0,0,96,60); g.strokeStyle='#f4f4f4'; g.lineWidth=5; g.beginPath(); g.moveTo(30,48); g.lineTo(66,20); g.moveTo(30,20); g.lineTo(66,48); g.stroke();
+    g.fillStyle='#f4f4f4'; g.beginPath(); g.arc(48,27,11,0,Math.PI*2); g.fill(); g.fillStyle='#111111'; g.beginPath(); g.arc(44,26,2.6,0,7); g.arc(52,26,2.6,0,7); g.fill(); }
+  return new THREE.CanvasTexture(c); }
+function makeBoatFlag(id){ const g=new THREE.Group(); g.add(part(GEO.cyl,MCOL(0xf1eee6),.015,.95,.015,-.18,.6,3.7));
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(.46,.29),new THREE.MeshLambertMaterial({map:flagTexFor(id),side:THREE.DoubleSide})); fl.position.set(-.41,.92,3.7); fl.rotation.y=-.4; g.add(fl); return g; }
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 const dummy=new THREE.Object3D(), tmpC=new THREE.Color();
 function instanced(geo,mat,items,fn){
@@ -753,7 +816,7 @@ const kmText=m=>m>=1000?(m/1000).toLocaleString('en-US')+' km':m+' m';
 
 let finishAt=0; // target distance for the current piece (0 = none)
 function buildChunk(k){
-  const grp=new THREE.Group(), d0=k*CH, rnd=mulberry(k*9973+17);
+  const grp=new THREE.Group(), d0=k*CH, rnd=mulberry(k*9973+17), crit=[];
   grp.add(buildBank(d0,1),buildBank(d0,-1));
   const spr=[], bir=[];
   for(const side of [1,-1]){
@@ -797,6 +860,12 @@ function buildChunk(k){
       grp.add(g2);
     }
   }
+  // bottles bobbing in your lane
+  const bottles=[], nb=rnd()<.3?0:(rnd()<.6?1:2);
+  for(let i=0;i<nb;i++){ const d=d0+20+rnd()*(CH-40); if(d<60) continue; const msg=rnd()<.4, bt=makeBottle(msg);
+    bt.position.set(cx(d)+LANE_ME+(rnd()-.5)*.6,.04,-d); bt.rotation.y=rnd()*6; grp.add(bt); bottles.push({d,g:bt,msg}); crit.push({g:bt,kind:'bob',y0:.04,ph:rnd()*6}); }
+  grp.userData.bottles=bottles;
+  if(finishAt&&finishAt>=d0&&finishAt<d0+CH) grp.add(makeStand(finishAt));
   // reeds along the water's edge
   const reeds=[];
   for(const side of [1,-1]) for(let i=0;i<60;i++){ if(rnd()<(scen==='arch'?.85:.35)) continue; const d=d0+rnd()*CH, n=3+Math.floor(rnd()*6), o=-.9+rnd()*2.2;
@@ -806,7 +875,7 @@ function buildChunk(k){
   // stone bridges every 1.5 km
   for(let m=Math.floor(d0/1500)*1500+700; m<d0+CH; m+=1500) if(m>=d0&&m>0&&scen!=='arch') grp.add(makeBridge(m));
   // wildlife
-  const crit=[], wild=[];
+  const wild=[];
   if(rnd()<.55){ const d=d0+20+rnd()*(CH-40), off=(rnd()-.5)*18;
     for(let j=0;j<2;j++){ const sw=makeSwan(); sw.rotation.y=rnd()*6; grp.add(sw); crit.push({g:sw,kind:'swan',d:d+j*1.6,off:off+j*.9,ph:rnd()*6}); } wild.push({kind:'swan',d,side:off<0?-1:1}); }
   if(rnd()<.4){ const side=rnd()<.5?1:-1, d=d0+rnd()*CH, hr=makeHeron(); hr.position.set(cx(d)+side*(W/2+.9),-.05,-d); hr.rotation.y=(side>0?-1:1)*Math.PI/2+(rnd()-.5); grp.add(hr); wild.push({kind:'heron',d,side}); }
@@ -894,6 +963,29 @@ function makeBoat(ghost,col){
 const me=makeBoat(false), gh=makeBoat(true); gh.g.visible=false;
 const boatLamp=new THREE.Sprite(glowMat); boatLamp.scale.set(1.3,1.3,1); boatLamp.position.set(0,.55,3.9); boatLamp.visible=false; me.g.add(boatLamp);
 scene.add(rain); scene.add(birds);
+const COS={hat:null,pet:null,flag:null};
+function applyCosmetics(){ const eq=store.prefs.equip;
+  if(COS.hat){ me.lean.remove(COS.hat); COS.hat=null; } if(COS.pet){ me.g.remove(COS.pet); COS.pet=null; } if(COS.flag){ me.g.remove(COS.flag); COS.flag=null; }
+  if(eq.hat){ COS.hat=makeHat(eq.hat); me.lean.add(COS.hat); } if(eq.pet){ COS.pet=makePet(eq.pet); me.g.add(COS.pet); } if(eq.flag){ COS.flag=makeBoatFlag(eq.flag); me.g.add(COS.flag); } }
+const TRAIL_N=140, trailParts=[], FW_N=160, fwParts=[]; let trailNext=0, trailIdx=0, fwIdx=0; const vT=new THREE.Vector3();
+for(let i=0;i<TRAIL_N+FW_N;i++){ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
+  sp.visible=false; sp.userData={age:9,life:1}; scene.add(sp); (i<TRAIL_N?trailParts:fwParts).push(sp); }
+function updateTrail(dt){
+  for(const q of trailParts){ if(!q.visible) continue; const u=q.userData; u.age+=dt; if(u.age>u.life){ q.visible=false; continue; }
+    const k=1-u.age/u.life; q.material.opacity=k*.9; q.position.y+=u.vy*dt; const sc=u.s*(.5+.5*k); q.scale.set(sc,sc,1); }
+  const tr=store.prefs.equip.trail; if(!tr||phys.v<.6||simT<trailNext) return; trailNext=simT+.045;
+  const q=trailParts[trailIdx++%TRAIL_N], u=q.userData; me.g.localToWorld(vT.set((Math.random()-.5)*.5,.15,3.9)); q.position.copy(vT);
+  u.age=0; u.life=1.6; u.vy=tr==='sparkle'?.25:.08; u.s=tr==='sparkle'?.25+Math.random()*.25:.45;
+  if(tr==='rainbow') q.material.color.setHSL((simT*.5)%1,.9,.6); else if(tr==='gold') q.material.color.setHex(0xffc860); else q.material.color.setHex(0xffffff);
+  q.scale.set(u.s,u.s,1); q.visible=true;
+}
+function burst(x,y,z,hue){ for(let i=0;i<40;i++){ const q=fwParts[fwIdx++%FW_N], u=q.userData, th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1), sp=6+Math.random()*4;
+  u.vx=Math.sin(ph)*Math.cos(th)*sp; u.vy=Math.cos(ph)*sp; u.vz=Math.sin(ph)*Math.sin(th)*sp; u.age=0; u.life=1.6+Math.random()*.6;
+  q.position.set(x,y,z); q.material.color.setHSL(hue,.9,.6); q.material.opacity=1; q.scale.set(1.2,1.2,1); q.visible=true; } }
+function fireworks(){ const yaw=me.g.rotation.y, fx=-Math.sin(yaw), fz=-Math.cos(yaw), rx=Math.cos(yaw), rz=-Math.sin(yaw), bp=me.g.position.clone();
+  [0,450,900,1350].forEach((dl,i)=>setTimeout(()=>{ const sx=(Math.random()-.5)*30; burst(bp.x+fx*(36+i*5)+rx*sx,9+Math.random()*6,bp.z+fz*(36+i*5)+rz*sx,Math.random()); pop(); },dl)); }
+function updateFw(dt){ for(const q of fwParts){ if(!q.visible) continue; const u=q.userData; u.age+=dt; if(u.age>u.life){ q.visible=false; continue; }
+  u.vy-=4*dt; u.vx*=.985; u.vz*=.985; q.position.x+=u.vx*dt; q.position.y+=u.vy*dt; q.position.z+=u.vz*dt; q.material.opacity=1-u.age/u.life; } }
 function applyLivery(){ let l=LIVERIES.find(x=>x.id===store.prefs.livery)||LIVERIES[0]; if(levelOf(store.xp)<l.lvl) l=LIVERIES[0];
   me.M.hull.color.setHex(l.hull); me.M.shirt.color.setHex(l.shirt); me.M.blade.color.setHex(l.blade); }
 
@@ -1061,6 +1153,13 @@ function thunder(k){ if(!ac||!soundOn) return; try{
     for(let i=0;i<n;i++){ v=v*.992+(Math.random()*2-1)*.09; const t=i/n; ch[i]=v*Math.min(1,t*25)*Math.pow(1-t,1.5)*(.7+.3*Math.sin(t*23)); } }
   const s=ac.createBufferSource(); s.buffer=thunderBuf; s.playbackRate.value=.75+Math.random()*.35; const f=ac.createBiquadFilter(); f.type='lowpass'; f.frequency.value=260;
   const g=ac.createGain(); g.gain.value=1.4*k; s.connect(f).connect(g).connect(ac.destination); s.start(); }catch(e){} }
+function plink(){ if(!ac||!soundOn) return; try{ const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain(); o.type='sine'; o.frequency.setValueAtTime(1300,t); o.frequency.exponentialRampToValueAtTime(2100,t+.08);
+  g.gain.setValueAtTime(.12,t); g.gain.exponentialRampToValueAtTime(.001,t+.25); o.connect(g).connect(ac.destination); o.start(t); o.stop(t+.27); }catch(e){} }
+function pop(){ if(!ac||!soundOn) return; try{ const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain(); o.type='triangle'; o.frequency.setValueAtTime(320,t); o.frequency.exponentialRampToValueAtTime(70,t+.35);
+  g.gain.setValueAtTime(.2,t); g.gain.exponentialRampToValueAtTime(.001,t+.4); o.connect(g).connect(ac.destination); o.start(t); o.stop(t+.42); }catch(e){} }
+function horn(){ if(!ac||!soundOn) return; try{ const t=ac.currentTime; [220,277,330].forEach(fq=>{ const o=ac.createOscillator(), g=ac.createGain(), f=ac.createBiquadFilter();
+  o.type='sawtooth'; o.frequency.value=fq; f.type='lowpass'; f.frequency.value=1200; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.07,t+.03); g.gain.setValueAtTime(.07,t+.75); g.gain.linearRampToValueAtTime(0,t+.95);
+  o.connect(f).connect(g).connect(ac.destination); o.start(t); o.stop(t+1); }); }catch(e){} }
 function tick(){ if(!ac||!soundOn) return; try{ const t=ac.currentTime, o=ac.createOscillator(), g=ac.createGain(); o.type='triangle'; o.frequency.value=1250;
   g.gain.setValueAtTime(.0001,t); g.gain.linearRampToValueAtTime(.09,t+.005); g.gain.exponentialRampToValueAtTime(.0001,t+.07); o.connect(g).connect(ac.destination); o.start(t); o.stop(t+.08); }catch(e){} }
 function ding(gold){ if(!ac||!soundOn) return; try{ const t=ac.currentTime; (gold?[880,1175,1568]:[1046,1568]).forEach((fq,i)=>{ const o=ac.createOscillator(), g=ac.createGain(), st=t+i*.07;
@@ -1279,6 +1378,13 @@ function stroke(src){
     const spm=curSpm();
     if(spm>=30){ sess.rateRun++; if(sess.rateRun>=20) unlock('rate30'); } else sess.rateRun=0;
     if(sess.strokes===6) fadeHint();
+    if(src!=='auto'){ const r=ftms.on&&ftms.spm?ftms.spm:(gapT>.6&&gapT<6?60/gapT:0);
+      if(r>0){ if(!sess.rEma) sess.rEma=r; const dev=Math.abs(r-sess.rEma)/sess.rEma; sess.rEma+=(r-sess.rEma)*.25;
+        const f0=sess.flow||0; if(dev<.06) sess.flow=Math.min(20,f0+1); else if(dev>.15) sess.flow=Math.max(0,f0-4);
+        const f=sess.flow; if(f>=20) addScore(3,null); else if(f>=10) addScore(1,null);
+        if(f0<10&&f>=10) say(pick(['Lovely rhythm. Keep it there.','That\'s it. Nice and steady.']),false);
+        if(f0<20&&f>=20){ say(pick(['That is the zone. Hold it!','In the zone. Beautiful.']),false); unlock('zone'); }
+        if(f0>=10&&f<10) say('Rhythm slipped. Find it again.',false); } }
     const P=sess.p10;
     if(P.phase==='call'){ if(--P.wait<=0){ P.phase='on'; P.left=10; P.vs=0; P.ts=0; say(pick(['Go!','Now!','Up!']),true); } }
     else if(P.phase==='on'){ P.left--; if(P.left===5) say(pick(['Five more.','Halfway, five more.','Keep going, five!']),false); if(P.left<=0) endPower10(); }
@@ -1367,6 +1473,7 @@ function finish(complete){
   if(complete) addScore(100,null);
   say(complete?pick(['Easy oar. Well rowed.','And easy. Lovely work.','Easy there. Good row.']):pick(['Easy oar.','And easy.']),true); hideP10(); musicStop();
   checkChallenge(true);
+  if(complete&&w.type==='dist'){ horn(); fireworks(); }
   if(sess.ev&&!sess.demo) evResult(sess.ev,complete);
   const saveable=!sess.demo&&t>10&&d>50;
   let pbLine='';
@@ -1387,7 +1494,7 @@ function finish(complete){
     if(journeyOffset!==null){ const j=jCur(), before=jMeters(j); store.journeys[j.id]=Math.min(j.km*1000,before+rec.d);
       sess.jLine={name:j.name,before,after:jMeters(j),km:j.km,next:jNextStop(j,jMeters(j))};
       if(jMeters(j)>=j.km*1000) unlock('voyage'); }
-    const xp0=store.xp||0, gain=sess.score+Math.round(rec.d/10); store.xp=xp0+gain;
+    const xp0=store.xp||0, gain=sess.score+Math.round(rec.d/10); store.xp=xp0+gain; store.coins=(store.coins||0)+sess.score; sess.coinsGain=sess.score;
     const L0=levelOf(xp0), L1=levelOf(store.xp);
     sess.xp={gain,before:xp0,after:store.xp,L0,L1,newLiv:LIVERIES.filter(l=>l.lvl>L0&&l.lvl<=L1)};
     save();
@@ -1503,6 +1610,15 @@ function renderWild(){
     return '<div class="wc '+(c?'seen':'unseen')+'"><b>'+(c?esc(w.name):'Not seen yet')+'</b><small>'+w.rar+(c?' · seen '+c+'×':(w.where?' · '+w.where:''))+'</small></div>'; }).join('');
 }
 
+function checkBottles(){
+  for(const [,g] of chunks){ const bl=g.userData.bottles; if(!bl) continue;
+    for(const b of bl){ if(b.taken||phys.d<b.d-2.5||phys.d>b.d+6) continue; b.taken=1; b.g.visible=false; ripple(b.g.position,.5); plink(); addScore(20,null); gatePop('+20',true);
+      if(b.msg){ const i=store.factI=((store.factI===undefined?Math.floor(Math.random()*FACTS.length):store.factI)+1)%FACTS.length; save();
+        toast('Message in a bottle',FACTS[i]); say('Message in a bottle. '+FACTS[i],false); } } }
+}
+function cheerCheck(w){ if(w.type!=='dist'||!finishAt||sess.cheer) return; const left=finishAt-phys.d;
+  if(left<130&&left>0){ sess.cheer=1; applause(); say(pick(['Hear that crowd? Bring it home!','The crowd is up! Last push!']),true); } }
+
 /* ================= intervals ================= */
 function ivSeg(){ return sess&&sess.iv?sess.iv.plan[sess.iv.i]:null; }
 function ivTarget(seg){ return Math.round(sess.iv.base-seg.off); }
@@ -1562,6 +1678,8 @@ function updateHud(force){
   $('watts').textContent=Math.round(ftms.on&&ftms.power>0?ftms.power:2.8*v*v*v);
   let p=0; if(w.type==='dist') p=phys.d/w.target; else if(w.type==='time') p=sess.t/w.target; else if(w.type==='storm') p=clamp((phys.d-sess.stormD)/200,0,1); else if(w.type==='intervals'&&sess.iv){ const seg=ivSeg(), el=sess.t-sess.iv.t0, dd=phys.d-sess.iv.d0; p=(sess.iv.i+(seg?clamp(seg.d?dd/seg.d:el/seg.t,0,1):0))/sess.iv.plan.length; } else p=(phys.d%500)/500;
   $('progFill').style.width=clamp(p*100,0,100)+'%';
+  if(simT-lastStrokeAt>6) sess.flow=0;
+  $('flowFill').style.width=((sess.flow||0)/20*100)+'%'; $('splitPanel').classList.toggle('zone',(sess.flow||0)>=20);
   const chip=$('gateChip');
   if(gates.length){ chip.hidden=false; const L=sess.g.live;
     if(L){ const tt=sess.t-L.t0, dd=phys.d-L.d0, cur=dd>3?500*tt/dd:Infinity; chip.className='gatechip '+(cur<=L.target?'ok':'no'); chip.textContent='Beat '+fmtClock(L.target)+' · now '+fmtSplit(cur); }
@@ -1650,7 +1768,7 @@ function frame(now){
     checkChallenge(false);
     coxTick(w);
     if(sess.iv) ivTick();
-    checkWild();
+    checkWild(); checkBottles(); cheerCheck(w);
     if(sess.storm){ const age=sess.t, f=age<240?.75+.35*age/240:1.1+.08*(age-240)/60; sess.stormD+=sess.stormVb*f*dt;
       const gap=phys.d-sess.stormD, lv=gap<20?3:gap<50?2:gap<100?1:0, pv=sess.stormLv||0;
       if(lv>pv) say(['','Storm closing. A hundred metres behind.','Fifty metres! Lift the rate!','It is right behind you! Everything!'][lv],true);
@@ -1677,11 +1795,11 @@ function frame(now){
       if(sess.started&&mode==='rowing'&&simT>=st.next&&fleetD(i,ft)<(finishAt||1e9)){ const per=60/st.spm; st.next=simT+per; boatStroke(b,per-DRIVE); }
       animBoat(b,dt,false); }); }
   updateRipples(dt);
-  updateChunks(phys.d); updateCritters(); updateRain(dt); updateBirds(dt); updateGates(dt);
+  updateChunks(phys.d); updateCritters(); updateRain(dt); updateBirds(dt); updateGates(dt); updateTrail(dt); updateFw(dt);
 
   // camera
   const yaw=me.g.rotation.y, fx=-Math.sin(yaw), fz=-Math.cos(yaw), rx=Math.cos(yaw), rz=-Math.sin(yaw), bp=me.g.position;
-  if(cine){ const a=-1.1+cine.t/cine.dur*2.0; tPos.set(bp.x+rx*Math.cos(a)*8+fx*Math.sin(a)*8,2.2,bp.z+rz*Math.cos(a)*8+fz*Math.sin(a)*8); tLook.set(bp.x,.7,bp.z); }
+  if(cine){ const a=-1.1+cine.t/cine.dur*2.0; tPos.set(bp.x+rx*Math.cos(a)*8+fx*Math.sin(a)*8,2.2,bp.z+rz*Math.cos(a)*8+fz*Math.sin(a)*8); tLook.set(bp.x,1.8,bp.z); }
   else if(camMode===0){ tPos.set(bp.x-fx*9+rx*1.6, 3.1, bp.z-fz*9+rz*1.6); tLook.set(bp.x+fx*14+rx*1.5, .6, bp.z+fz*14+rz*1.5); }
   else if(camMode===1){ tPos.set(bp.x-rx*10-fx*2, 2.4, bp.z-rz*10-fz*2); tLook.set(bp.x+rx*2+fx*3, .5, bp.z+rz*2+fz*3); }
   else if(camMode===2){ tPos.set(bp.x-fx*18+rx*3, 15, bp.z-fz*18+rz*3); tLook.set(bp.x+fx*20+rx*2, 0, bp.z+fz*20+rz*2); }
@@ -1839,12 +1957,27 @@ function renderJourney(){
 function renderRank(){
   const xp=store.xp||0, L=levelOf(xp), a=LEVEL_XP(L), b=LEVEL_XP(L+1), hx=n=>'#'+n.toString(16).padStart(6,'0');
   $('lvlBadge').textContent=L; $('rankName').textContent=rankOf(L); $('xpFill').style.width=clamp((xp-a)/(b-a)*100,0,100)+'%';
+  $('coinTxt').textContent=fmtM(store.coins||0)+' coins to spend in the boat shop';
   $('xpTxt').textContent=fmtM(xp-a)+' / '+fmtM(b-a)+' XP to level '+(L+1);
   $('liveries').innerHTML=LIVERIES.map(l=>{ const lock=L<l.lvl;
     return '<button type="button" class="liv" data-l="'+l.id+'" aria-pressed="'+(store.prefs.livery===l.id&&!lock)+'"'+(lock?' disabled':'')+' title="'+esc(l.name)+(lock?' · unlocks at level '+l.lvl:'')+'" aria-label="'+esc(l.name)+(lock?', unlocks at level '+l.lvl:'')+'" style="background:linear-gradient(135deg,'+hx(l.hull)+' 0 52%,'+hx(l.shirt)+' 52% 76%,'+hx(l.blade)+' 76%)">'+(lock?'<small>L'+l.lvl+'</small>':'')+'</button>'; }).join('');
   $('liveries').querySelectorAll('button:not([disabled])').forEach(bt=>bt.onclick=()=>{ store.prefs.livery=bt.dataset.l; save(); applyLivery(); renderRank(); });
   let cur=LIVERIES.find(l=>l.id===store.prefs.livery)||LIVERIES[0]; if(L<cur.lvl) cur=LIVERIES[0]; $('livName').textContent=cur.name;
 }
+let shopCat='hat', shopPending=null;
+function renderShop(){ const eq=store.prefs.equip, coins=store.coins||0; $('shopCoins').textContent=fmtM(coins)+' coins';
+  $('shopTabs').innerHTML=CATS.map(([k,n])=>'<button type="button" data-c="'+k+'" aria-pressed="'+(shopCat===k)+'">'+n+'</button>').join('');
+  $('shopTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{ shopCat=b.dataset.c; shopPending=null; renderShop(); });
+  $('shopGrid').innerHTML=SHOP.filter(it=>it.cat===shopCat).map(it=>{ const own=!!store.owned[it.id], wear=eq[it.cat]===it.id, pend=shopPending===it.id, poor=!own&&coins<it.price;
+    const st=wear?'Wearing · tap to take off':own?'Owned · tap to use':pend?'Tap again to buy for '+fmtM(it.price):poor?'Need '+fmtM(it.price-coins)+' more coins':fmtM(it.price)+' coins';
+    return '<button type="button" class="item'+(wear?' wearing':'')+(pend?' pending':'')+(poor?' poor':'')+'" data-id="'+it.id+'"><b>'+esc(it.name)+'</b><small>'+st+'</small></button>'; }).join('');
+  $('shopGrid').querySelectorAll('.item').forEach(b=>b.onclick=()=>shopTap(b.dataset.id)); }
+function shopTap(id){ const it=SHOP.find(x=>x.id===id), eq=store.prefs.equip;
+  if(store.owned[id]){ eq[it.cat]=eq[it.cat]===id?'':id; shopPending=null; }
+  else if((store.coins||0)<it.price) shopPending=null;
+  else if(shopPending!==id) shopPending=id;
+  else { store.coins-=it.price; store.owned[id]=1; eq[it.cat]=id; shopPending=null; audioInit(); chime(); confetti(60); }
+  save(); applyCosmetics(); renderShop(); renderRank(); }
 function renderSeason(){
   const tot=SEASON.reduce((a,e)=>a+((store.season[e.id]||{}).stars||0),0); $('seasonStars').textContent=tot+' of '+SEASON.length*3+' stars';
   $('season').innerHTML=SEASON.map((e,i)=>{ const st=(store.season[e.id]||{}).stars||0, lock=!evUnlocked(i);
@@ -1853,7 +1986,7 @@ function renderSeason(){
   $('season').querySelectorAll('.evgo:not([disabled])').forEach(b=>b.onclick=()=>startSession(SEASON[+b.dataset.i]));
 }
 function renderHome(){
-  const p=store.prefs; renderJourney(); renderWild(); renderSeason(); renderRank(); renderChallenge();
+  const p=store.prefs; renderJourney(); renderWild(); renderSeason(); renderShop(); renderRank(); renderChallenge();
   $('musSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.music)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.music=b.dataset.v==='1'; save(); renderHome(); }; });
   $('scenSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',(p.scenery||'auto')===b.dataset.s); b.onclick=()=>{ p.scenery=b.dataset.s; save(); setScenery(true); renderHome(); }; });
   $('gateSeg').querySelectorAll('button').forEach(b=>{ b.setAttribute('aria-pressed',String(p.gates)===(b.dataset.v==='1'?'true':'false')); b.onclick=()=>{ p.gates=b.dataset.v==='1'; save(); renderHome(); }; });
@@ -1908,7 +2041,7 @@ function splitChart(splits){
   return s+'</svg>';
 }
 function xpHtml(){ const x=sess.xp; if(!x) return ''; const L=x.L1, a=LEVEL_XP(L), b=LEVEL_XP(L+1), pct=clamp((x.after-a)/(b-a)*100,0,100);
-  return '<div class="xpbox"><div class="xprow"><span class="lbl">Level '+L+' · '+esc(rankOf(L))+'</span><b>+'+fmtM(x.gain)+' XP</b></div><div class="prog"><i id="xpDone" data-w="'+pct.toFixed(1)+'"></i></div>'+
+  return '<div class="xpbox"><div class="xprow"><span class="lbl">Level '+L+' · '+esc(rankOf(L))+'</span><b>+'+fmtM(x.gain)+' XP</b></div><div class="prog"><i id="xpDone" data-w="'+pct.toFixed(1)+'"></i></div>'+(sess.coinsGain?'<span class="coinln">+'+fmtM(sess.coinsGain)+' coins for the boat shop</span>':'')+
     (x.L1>x.L0?'<div class="lvlup">Level up! You reached level '+L+'.'+(x.newLiv.length?' New boat colours: '+esc(x.newLiv.map(l=>l.name).join(', '))+'.':'')+'</div>':'')+'</div>'; }
 function renderDone(r){
   const ei=sess.ev?SEASON.indexOf(sess.ev):-1, nextEv=ei>=0&&ei<SEASON.length-1&&evUnlocked(ei+1)?SEASON[ei+1]:null;
@@ -1937,7 +2070,7 @@ function renderDone(r){
 /* ================= boot ================= */
 scen=sceneryKey();
 applyCond(store.prefs.cond==='auto'?autoCond():store.prefs.cond);
-applyLivery();
+applyLivery(); applyCosmetics();
 renderHome();
 const fontsReady=(document.fonts&&document.fonts.ready)?Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,1500))]):Promise.resolve();
 fontsReady.then(()=>{ worldReady=true; updateChunks(phys.d); });
