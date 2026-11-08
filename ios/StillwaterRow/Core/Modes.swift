@@ -69,7 +69,13 @@ struct FleetRace {
         return d
     }
 
-    func finishTime(_ i: Int, target: Double) -> Double { (target - boats[i].head) / boats[i].speed }
+    /// When boat `i` reaches `target`, including its surge, so results match what you saw on the water.
+    func finishTime(_ i: Int, target: Double) -> Double {
+        let b = boats[i]
+        var t = (target - b.head) / b.speed
+        for _ in 0..<12 { t = (target - b.head - sin(t / 11 + b.phase) * b.amp) / b.speed }
+        return t
+    }
 
     struct Standing: Equatable {
         let position: Int

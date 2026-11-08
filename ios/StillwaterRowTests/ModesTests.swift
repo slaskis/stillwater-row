@@ -14,9 +14,11 @@ final class ModesTests: XCTestCase {
 
     func testFleetFinishPositionUsesFinishTimes() {
         let f = FleetRace.duel(crew: FleetRace.crews[0], split: 120, finish: 500)
-        XCTAssertEqual(f.finishTime(0, target: 500), 120, accuracy: 0.001)
-        XCTAssertEqual(f.finalPosition(myTime: 119, myDistance: 500, completedDistance: true), 1)
-        XCTAssertEqual(f.finalPosition(myTime: 121, myDistance: 500, completedDistance: true), 2)
+        let ft = f.finishTime(0, target: 500)
+        XCTAssertEqual(f.distance(0, at: ft), 500, accuracy: 0.01)   // matches the boat on the water
+        XCTAssertEqual(ft, 120, accuracy: 2)
+        XCTAssertEqual(f.finalPosition(myTime: ft - 0.5, myDistance: 500, completedDistance: true), 1)
+        XCTAssertEqual(f.finalPosition(myTime: ft + 0.5, myDistance: 500, completedDistance: true), 2)
     }
 
     func testStormSpeedsUpAndCatchesAStationaryBoat() {

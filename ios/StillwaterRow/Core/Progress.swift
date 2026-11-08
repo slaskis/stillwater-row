@@ -136,6 +136,22 @@ struct ProgressState: Codable, Equatable {
     var season: [String: Int] = [:]
     var journeyID = "gota"
 
+    init() {}
+
+    /// Missing keys fall back to defaults, so adding a field later never wipes saved progress.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        xp = try c.decodeIfPresent(Int.self, forKey: .xp) ?? 0
+        coins = try c.decodeIfPresent(Int.self, forKey: .coins) ?? 0
+        lifetime = try c.decodeIfPresent(Double.self, forKey: .lifetime) ?? 0
+        unlocked = try c.decodeIfPresent([String: Date].self, forKey: .unlocked) ?? [:]
+        days = try c.decodeIfPresent([String].self, forKey: .days) ?? []
+        challenges = try c.decodeIfPresent([String: Bool].self, forKey: .challenges) ?? [:]
+        journeys = try c.decodeIfPresent([String: Double].self, forKey: .journeys) ?? [:]
+        season = try c.decodeIfPresent([String: Int].self, forKey: .season) ?? [:]
+        journeyID = try c.decodeIfPresent(String.self, forKey: .journeyID) ?? "gota"
+    }
+
     var level: Int { Levels.level(xp: xp) }
 
     func journeyMeters(_ j: Journey) -> Double { min(journeys[j.id] ?? 0, j.meters) }

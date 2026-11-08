@@ -1032,7 +1032,7 @@ final class RowGame {
             }
             return nil
         }
-        guard r.complete || !piece.isDistance else { return nil }
+        guard r.complete || !(piece.isDistance || piece.intervalSteps != nil) else { return nil }
         if piece.isStorm { return "First storm run on record. Beat \(Fmt.meters(r.distance)) m next time." }
         if piece.intervalSteps != nil, let avg = r.averageWorkSplit {
             return "First \(piece.name) on record. Beat an average of \(Fmt.clock(avg, tenths: true)) next time."
