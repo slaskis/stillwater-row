@@ -26,7 +26,10 @@ A native rewrite of Stillwater Row in SwiftUI, SceneKit and SwiftData, with Appl
   - The results screen shows heart rate once the sync has happened ("Check again").
   - Any standard Bluetooth chest strap or arm band gives live heart rate on screen.
 
-Still to come from the web version: weather and time of day, wildlife, the boat shop, music and sound effects.
+- **Weather and scenery:** dawn mist, clear day, sunset, night lanterns or autumn rain (or follow the clock), through a forest river or the archipelago, with swans, herons, birds, bridges, cottages, spars, sailing boats and a lighthouse.
+- **Wildlife:** eight animals to spot for the field guide, and messages in bottles.
+- **Boat shop:** spend coins on hats, crew, flags and wakes; liveries unlock with your level.
+- **Music and sound:** a band that follows your stroke rate and gets busier as you push, plus splashes, gate dings, thunder, the start horn, a cheering grandstand, fireworks and an optional rate beat.
 
 ## Build it
 

@@ -313,6 +313,7 @@ extension RiverScene {
         let fade = CAKeyframeAnimation()
         fade.values = [1.0, 1.0, 0.0]
         fade.keyTimes = [0, 0.55, 1]
+        fade.duration = 1
         ps.propertyControllers = [.opacity: SCNParticlePropertyController(animation: fade)]
         return ps
     }

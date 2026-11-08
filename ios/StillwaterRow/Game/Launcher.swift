@@ -21,7 +21,11 @@ enum Launcher {
         }
 
         /// Auto follows the clock; auto scenery follows the journey you're on.
-        func resolvedCondition() -> Condition { Condition(rawValue: condition) ?? Condition.auto() }
+        func resolvedCondition() -> Condition {
+            // The chance of rain is rolled once a day, so the dock doesn't flicker between day and rain.
+            let roll = Double(DailyChallenge.hash(DailyChallenge.dayKey() + "rain") % 1000) / 1000
+            return Condition(rawValue: condition) ?? Condition.auto(random: roll)
+        }
 
         func resolvedScenery(journey: String) -> Scenery {
             Scenery(rawValue: scenery) ?? (journey == "skargard" ? .archipelago : .river)

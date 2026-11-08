@@ -288,7 +288,7 @@ final class RowGame {
     func pause() {
         guard phase == .rowing || phase == .countdown else { return }
         phase = .paused
-        sound.setMusic(strokeRate: 0, level: 0)
+        stopMusic()
     }
 
     func resume() {
