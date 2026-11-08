@@ -1,0 +1,6 @@
+*.xcodeproj
+xcuserdata/
+DerivedData/
+build/
+Support/Info.plist
+Support/StillwaterRow.entitlements

@@ -8,5 +8,11 @@ A 3D river for a home rowing machine: race a ghost of your previous sessions, hi
   On iPad, open it in a Web Bluetooth browser such as Bluefy (Safari has no Web Bluetooth).
 - Without a rower connected: tap the screen or press Space once per stroke.
 
+## Native app
+
+`ios/` holds a native rewrite in SwiftUI, SceneKit and SwiftData, with Apple Health: rows are saved as
+indoor rowing workouts, and heart rate and rowing history are read back. See [ios/README.md](ios/README.md)
+for build steps.
+
 FitShow framing (`02 cmd … xor 03`, polls `02 42 42 03` / `02 43 01 42 03`) follows the
 FitShow rower driver in [qdomyos-zwift](https://github.com/cagnulein/qdomyos-zwift/pull/4919).

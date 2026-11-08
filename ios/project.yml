@@ -1,0 +1,73 @@
+name: StillwaterRow
+options:
+  bundleIdPrefix: se.middlemanagement
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  StillwaterRow:
+    type: application
+    platform: iOS
+    sources:
+      - path: StillwaterRow
+    info:
+      path: Support/Info.plist
+      properties:
+        CFBundleDisplayName: Stillwater
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSBluetoothAlwaysUsageDescription: Stillwater connects to your rowing machine's console and to Bluetooth heart-rate straps.
+        NSHealthShareUsageDescription: Stillwater shows your rowing history and the heart rate recorded during each row.
+        NSHealthUpdateUsageDescription: Stillwater saves each row to Apple Health as an indoor rowing workout.
+    entitlements:
+      path: Support/StillwaterRow.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: se.middlemanagement.stillwater
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  StillwaterRowTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: StillwaterRowTests
+    dependencies:
+      - target: StillwaterRow
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: se.middlemanagement.stillwater.tests
+schemes:
+  StillwaterRow:
+    build:
+      targets:
+        StillwaterRow: all
+        StillwaterRowTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - StillwaterRowTests
