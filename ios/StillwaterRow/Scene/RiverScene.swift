@@ -53,7 +53,11 @@ final class RiverScene {
     let cameraNode = SCNNode()
     let boat = BoatNode(style: .player)
     let ghost = BoatNode(style: .ghost)
-    var cameraMode = 0
+    var cameraMode = 0 {
+        // Turning round to look back is a cut, not a swing through the boat.
+        didSet { if (oldValue == 3) != (cameraMode == 3) { cameraPlaced = false } }
+    }
+    private var camYaw: Float = 0
 
     let water = SCNNode()
     let waterMaterial = SCNMaterial()
@@ -228,7 +232,14 @@ final class RiverScene {
     }
 
     private func updateCamera(_ dt: Double) {
-        let yaw = boat.root.eulerAngles.y
+        // Follow the river's bends smoothly rather than every wobble of the boat.
+        let boatYaw = boat.root.eulerAngles.y
+        if !cameraPlaced { camYaw = boatYaw }
+        var dy = boatYaw - camYaw
+        while dy > .pi { dy -= 2 * .pi }
+        while dy < -.pi { dy += 2 * .pi }
+        camYaw += dy * Float(1 - exp(-dt * 2))
+        let yaw = camYaw
         let f = SIMD3<Float>(-sin(yaw), 0, -cos(yaw))    // forward
         let r = SIMD3<Float>(cos(yaw), 0, -sin(yaw))     // right
         let b = boat.root.simdPosition
@@ -240,9 +251,9 @@ final class RiverScene {
         case 2:  // high
             target = b - f * 18 + r * 3 + SIMD3(0, 15, 0)
             look = b + f * 20 + r * 2
-        case 3:  // looking back down the river
-            target = b + f * 10 + r * 1.2 + SIMD3(0, 3.4, 0)
-            look = b - f * 30 + SIMD3(0, 1.5, 0)
+        case 3:  // looking back down the river, over the boat
+            target = b + f * 12 + r * 1.5 + SIMD3(0, 4.2, 0)
+            look = b - f * 40 + SIMD3(0, 3, 0)
         default: // behind
             target = b - f * 9 + r * 1.6 + SIMD3(0, 3.1, 0)
             look = b + f * 14 + r * 1.5 + SIMD3(0, 0.6, 0)
@@ -262,7 +273,7 @@ final class RiverScene {
 
     /// Keeps ~1.4 km of river around the boat; builds at most one new stretch per frame to avoid hitches.
     private func updateChunks(around d: Double) {
-        let first = Int(floor((d - 200) / River.chunk))
+        let first = Int(floor((d - (cameraMode == 3 ? 520 : 200)) / River.chunk))
         let last = Int(floor((d + 950) / River.chunk))
         for (k, node) in chunks where k < first || k > last {
             node.removeFromParentNode()
