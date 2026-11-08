@@ -5,13 +5,13 @@ import simd
 /// Shared geometry for scenery, so each stretch of river flattens into a few draw calls.
 @MainActor
 private enum Props {
-    static let spruceCones: [SCNGeometry] = [0x1f3a24, 0x24402a, 0x2b4a2f, 0x1c3322].map { hex in
+    static let spruceCones: [SCNGeometry] = [0x1f3a24, 0x24402a, 0x2b4a2f, 0x1c3322].map { (hex: UInt32) -> SCNGeometry in
         let g = SCNCone(topRadius: 0, bottomRadius: 1, height: 1)
         g.radialSegmentCount = 7
         g.materials = [Palette.lambert(hex)]
         return g
     }
-    static let leaves: [SCNGeometry] = [0xd9a032, 0xc9782a, 0xb8862e, 0xe0b84a, 0xa9552a].map { hex in
+    static let leaves: [SCNGeometry] = [0xd9a032, 0xc9782a, 0xb8862e, 0xe0b84a, 0xa9552a].map { (hex: UInt32) -> SCNGeometry in
         let g = SCNSphere(radius: 1)
         g.segmentCount = 7
         g.materials = [Palette.lambert(hex)]
@@ -161,21 +161,21 @@ final class RiverScene {
     float3 sunDir;
 
     #pragma body
-    #define WAVE(q) (sin((q).x*0.31+t*1.1)*0.5 + sin((q).y*0.23-t*0.8)*0.5 + sin(((q).x+(q).y)*0.92+t*1.7)*0.2 + sin((q).x*1.9-(q).y*1.4+t*2.4)*0.12 + sin((q).y*3.1+(q).x*0.7-t*3.0)*0.05)
-    float t = scn_frame.time;
-    float3 wp = (scn_frame.inverseViewTransform * float4(_surface.position, 1.0)).xyz;
-    float3 cam = (scn_frame.inverseViewTransform * float4(0.0, 0.0, 0.0, 1.0)).xyz;
-    float2 p = wp.xz;
-    float e = 0.2;
-    float dx = (WAVE(p + float2(e, 0.0)) - WAVE(p - float2(e, 0.0))) / (2.0 * e);
-    float dz = (WAVE(p + float2(0.0, e)) - WAVE(p - float2(0.0, e))) / (2.0 * e);
-    float3 n = normalize(float3(-dx * 0.16, 1.0, -dz * 0.16));
-    float3 v = normalize(cam - wp);
-    float fr = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-    float3 c = mix(deepCol, skyCol, 0.12 + 0.78 * fr);
-    float sp = pow(max(dot(reflect(-v, n), normalize(sunDir)), 0.0), 180.0);
-    c += sunCol * sp * 1.4;
-    _surface.diffuse = float4(c, 1.0);
+    #define WAVE(q) (sin((q).x*0.31+w_t*1.1)*0.5 + sin((q).y*0.23-w_t*0.8)*0.5 + sin(((q).x+(q).y)*0.92+w_t*1.7)*0.2 + sin((q).x*1.9-(q).y*1.4+w_t*2.4)*0.12 + sin((q).y*3.1+(q).x*0.7-w_t*3.0)*0.05)
+    float w_t = scn_frame.time;
+    float3 w_pos = (scn_frame.inverseViewTransform * float4(_surface.position, 1.0)).xyz;
+    float3 w_cam = (scn_frame.inverseViewTransform * float4(0.0, 0.0, 0.0, 1.0)).xyz;
+    float2 w_p = w_pos.xz;
+    float w_e = 0.2;
+    float w_dx = (WAVE(w_p + float2(w_e, 0.0)) - WAVE(w_p - float2(w_e, 0.0))) / (2.0 * w_e);
+    float w_dz = (WAVE(w_p + float2(0.0, w_e)) - WAVE(w_p - float2(0.0, w_e))) / (2.0 * w_e);
+    float3 w_n = normalize(float3(-w_dx * 0.16, 1.0, -w_dz * 0.16));
+    float3 w_v = normalize(w_cam - w_pos);
+    float w_fr = pow(1.0 - max(dot(w_n, w_v), 0.0), 3.0);
+    float3 w_c = mix(deepCol, skyCol, 0.12 + 0.78 * w_fr);
+    float w_sp = pow(max(dot(reflect(-w_v, w_n), normalize(sunDir)), 0.0), 180.0);
+    w_c += sunCol * w_sp * 1.4;
+    _surface.diffuse = float4(w_c, 1.0);
     """
 
     private func setUpRipples() {

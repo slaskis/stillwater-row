@@ -164,11 +164,29 @@ final class BluetoothLink: NSObject {
             problem = nil
             reconnectRemembered()
             if wantScan { beginScan() }
-        case .poweredOff: problem = "Bluetooth is off. Turn it on in Control Center."
-        case .unauthorized: problem = "Stillwater isn't allowed to use Bluetooth. Turn it on in Settings › Stillwater."
-        case .unsupported: problem = "This device doesn't support Bluetooth LE."
-        default: break
+        case .poweredOff:
+            problem = "Bluetooth is off. Turn it on in Control Center."
+            dropConnections()
+        case .unauthorized:
+            problem = "Stillwater isn't allowed to use Bluetooth. Turn it on in Settings › Stillwater."
+            dropConnections()
+        case .resetting:
+            dropConnections()
+        case .unsupported:
+            problem = "This device doesn't support Bluetooth LE."
+        default:
+            break
         }
+    }
+
+    /// CoreBluetooth drops everything without disconnect callbacks; forget the live peripherals
+    /// (but not the remembered ids) so they reconnect when Bluetooth is back.
+    private func dropConnections() {
+        clearRowerState()
+        rower = nil
+        strap = nil
+        heartRate = nil
+        scanning = false
     }
 
     private func discovered(_ p: CBPeripheral, advertisement: [String: Any], rssi: Int) {

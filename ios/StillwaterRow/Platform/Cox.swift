@@ -60,8 +60,11 @@ final class Cox: NSObject {
     }
 
     private func releaseAudio() {
-        guard !synth.isSpeaking else { return }
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !self.synth.isSpeaking else { return }
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 }
 

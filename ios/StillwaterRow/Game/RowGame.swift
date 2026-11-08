@@ -41,8 +41,8 @@ final class RowGame {
     var hint: String?
     var cameraMode = 0 { didSet { world.cameraMode = cameraMode } }
 
-    @ObservationIgnored let world = RiverScene()
-    @ObservationIgnored let cox = Cox()
+    let world = RiverScene()
+    let cox = Cox()
     @ObservationIgnored var onFinish: ((RowResult) -> Void)?
 
     @ObservationIgnored private weak var link: BluetoothLink?

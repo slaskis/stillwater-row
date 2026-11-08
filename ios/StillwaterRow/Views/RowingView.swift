@@ -17,7 +17,7 @@ struct RowingView: View {
             VStack(spacing: 12) {
                 if sizeClass == .compact {
                     SplitPanel()
-                    HStack(alignment: .top) { PiecePanel(); Spacer(minLength: 8); StatsPanel() }
+                    StatsPanel()
                 } else {
                     HStack(alignment: .top, spacing: 12) {
                         PiecePanel()

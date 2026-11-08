@@ -35,7 +35,7 @@ final class HealthStore {
     var history: [HealthWorkout] = []
     var lastError: String?
 
-    @ObservationIgnored private let store = HKHealthStore()
+    private let store = HKHealthStore()
 
     init() {
         asked = UserDefaults.standard.bool(forKey: "health.asked")
@@ -79,6 +79,8 @@ final class HealthStore {
 
         var samples: [HKSample] = []
         let distanceType = HKQuantityType(.distanceRowing)
+        let mayWriteDistance = store.authorizationStatus(for: distanceType) == .sharingAuthorized
+        let energyType = HKQuantityType(.activeEnergyBurned)
         // Distance in 10-second slices so Health can draw pace over time.
         var trace = Array(row.samples.prefix(Int(row.duration) + 1))
         trace.append(row.distance)
@@ -88,13 +90,13 @@ final class HealthStore {
             let metres = trace[j] - trace[i]
             let from = row.start.addingTimeInterval(Double(i))
             let to = row.start.addingTimeInterval(min(Double(j), row.duration))
-            if metres > 0, to > from {
+            if mayWriteDistance, metres > 0, to > from {
                 samples.append(HKQuantitySample(type: distanceType, quantity: HKQuantity(unit: .meter(), doubleValue: metres), start: from, end: to))
             }
             i = j
         }
-        if row.energy > 0 {
-            samples.append(HKQuantitySample(type: HKQuantityType(.activeEnergyBurned),
+        if row.energy > 0, store.authorizationStatus(for: energyType) == .sharingAuthorized {
+            samples.append(HKQuantitySample(type: energyType,
                                             quantity: HKQuantity(unit: .kilocalorie(), doubleValue: row.energy),
                                             start: row.start, end: row.end))
         }
