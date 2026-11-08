@@ -48,6 +48,7 @@ struct RootView: View {
         .onAppear(perform: wire)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active { game.pause() }
+            if newPhase == .background { game.sound.suspend() }
             if newPhase == .active { health.refreshStatus() }
         }
     }

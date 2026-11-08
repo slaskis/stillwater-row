@@ -171,7 +171,6 @@ final class RowGame {
         link.onStroke = { [weak self] in
             MainActor.assumeIsolated { self?.stroke(fromConsole: true) }
         }
-        cox.sound = sound
         world.onSighting = { [weak self] s in self?.sighted(s) }
         world.onBottle = { [weak self] msg in self?.bottle(hasMessage: msg) }
         world.onLightning = { [weak self] k in self?.sound.thunder(k) }
@@ -978,6 +977,7 @@ final class RowGame {
     private func startMusic() {
         guard UserDefaults.standard.object(forKey: "music") as? Bool ?? true else { return }
         musicOn = true
+        sound.musicEnabled = true
         sound.startMusic()
     }
 

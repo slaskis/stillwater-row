@@ -36,8 +36,13 @@ final class Cox: NSObject {
 
     private func activateAudio() {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
-        try? session.setActive(true)
+        if SoundEngine.isRunning {
+            // SoundEngine owns the active session. Only add ducking; keep the mode and never reactivate/deactivate.
+            try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
+        } else {
+            try? session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
+            try? session.setActive(true)
+        }
     }
 
     /// A regatta rival shouting across the water, in a different voice from the cox.
@@ -91,7 +96,13 @@ final class Cox: NSObject {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(400))
             guard !self.synth.isSpeaking, !self.rivalSynth.isSpeaking else { return }
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            let session = AVAudioSession.sharedInstance()
+            if SoundEngine.isRunning {
+                // Engine still needs the session: drop ducking but stay active.
+                try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            } else {
+                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            }
         }
     }
 }
