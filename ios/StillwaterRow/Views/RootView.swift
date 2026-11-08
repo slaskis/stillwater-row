@@ -54,6 +54,9 @@ struct RootView: View {
 
     private func wire() {
         game.attach(link: link, progress: progress)
+        let prefs = Launcher.Prefs.current
+        game.sound.effectsEnabled = UserDefaults.standard.object(forKey: "effects") as? Bool ?? true
+        game.setHomeLook(prefs.resolvedCondition(), scenery: prefs.resolvedScenery(journey: progress.state.journeyID))
         link.resume()
         let context = context, health = health, game = game
         game.onFinish = { result in

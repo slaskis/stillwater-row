@@ -109,7 +109,10 @@ struct HomeView: View {
     @ViewBuilder private var right: some View {
         SeasonCard(sessions: sessions)
         JourneyCard()
+        WaterCard()
+        ShopCard()
         MilestonesCard()
+        FieldGuideCard()
         RowerCard()
         HealthCard()
         LogbookCard(sessions: sessions)

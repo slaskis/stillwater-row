@@ -36,5 +36,31 @@ final class ProgressStore {
         return true
     }
 
+    enum Purchase { case bought, equipped, removed, tooExpensive }
+
+    /// Buys an item (and wears it), or toggles it on and off if you already own it.
+    @discardableResult
+    func shop(_ item: ShopItem) -> Purchase {
+        if state.owned.contains(item.id) {
+            let wearing = state.cosmetics[item.category] == item.id
+            update { $0.cosmetics[item.category] = wearing ? nil : item.id }
+            return wearing ? .removed : .equipped
+        }
+        guard state.coins >= item.price else { return .tooExpensive }
+        update {
+            $0.coins -= item.price
+            $0.owned.append(item.id)
+            $0.cosmetics[item.category] = item.id
+        }
+        return .bought
+    }
+
+    /// Next fact for a message in a bottle, cycling through them all.
+    func nextFact() -> String {
+        let i = ((state.factIndex ?? Int.random(in: 0..<Facts.all.count)) + 1) % Facts.all.count
+        update { $0.factIndex = i }
+        return Facts.all[i]
+    }
+
     var challengeDoneToday: Bool { state.challenges[DailyChallenge.dayKey()] == true }
 }

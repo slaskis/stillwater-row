@@ -56,6 +56,7 @@ struct RowResult: Identifiable {
     var gatesTried = 0
     var bestCombo = 0
     var caughtByStorm = false
+    var spotted: [Animal] = []
 
     var averageSplit: Double { distance > 0 ? duration / (distance / 500) : .infinity }
     var averageRate: Double { duration > 0 ? Double(strokes) / (duration / 60) : 0 }

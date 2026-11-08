@@ -7,13 +7,24 @@ enum Launcher {
         var choice: RivalChoice
         var pace: Double
         var gates: Bool
+        var condition: String = "auto"   // a Condition raw value, or "auto"
+        var scenery: String = "auto"     // a Scenery raw value, or "auto"
 
         /// The dock's settings, as saved by its @AppStorage controls.
         static var current: Prefs {
             let d = UserDefaults.standard
             return Prefs(choice: RivalChoice(rawValue: d.string(forKey: "rival") ?? "") ?? .best,
                          pace: d.object(forKey: "paceSplit") as? Double ?? 130,
-                         gates: d.object(forKey: "gates") as? Bool ?? true)
+                         gates: d.object(forKey: "gates") as? Bool ?? true,
+                         condition: d.string(forKey: "condition") ?? "auto",
+                         scenery: d.string(forKey: "scenery") ?? "auto")
+        }
+
+        /// Auto follows the clock; auto scenery follows the journey you're on.
+        func resolvedCondition() -> Condition { Condition(rawValue: condition) ?? Condition.auto() }
+
+        func resolvedScenery(journey: String) -> Scenery {
+            Scenery(rawValue: scenery) ?? (journey == "skargard" ? .archipelago : .river)
         }
     }
 
@@ -22,6 +33,13 @@ enum Launcher {
         let recent = Records.recentSplit(rows)
         let base = recent ?? 150
         var s = RowSetup(piece: piece, history: rows, event: event, baseSplit: base)
+        if let event {
+            s.condition = Condition(rawValue: event.condition) ?? .day
+            s.scenery = Scenery.forEvent(event.id)
+        } else {
+            s.condition = prefs.resolvedCondition()
+            s.scenery = prefs.resolvedScenery(journey: progress.state.journeyID)
+        }
 
         if let event {
             switch event.kind {

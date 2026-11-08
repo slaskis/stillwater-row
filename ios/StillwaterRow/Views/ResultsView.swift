@@ -75,6 +75,7 @@ struct ResultsView: View {
             .padding(.top, 40)
         }
         .background(Color.black.opacity(0.35).ignoresSafeArea())
+        .overlay { if result.isCelebration { ConfettiView(count: 220) } }
         .foregroundStyle(Theme.mist)
     }
 
@@ -228,6 +229,10 @@ private struct RewardsSection: View {
                     ProgressView(value: j.after / j.journey.meters).tint(Theme.ghost)
                     Text(journeyText(j)).font(.footnote).foregroundStyle(j.complete ? Theme.good : Theme.dim)
                 }
+            }
+            if !result.spotted.isEmpty {
+                Label("Spotted on the water: " + result.spotted.map(\.name).joined(separator: ", ") + ".", systemImage: "binoculars")
+                    .font(.footnote).foregroundStyle(Theme.dim)
             }
             if let c = result.challengeText {
                 Label(result.challengeDone ? "Daily challenge complete: \(c)" : "Daily challenge: \(c)",

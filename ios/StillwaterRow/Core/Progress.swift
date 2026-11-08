@@ -28,6 +28,7 @@ struct Achievement: Identifiable, Hashable {
         Achievement(id: "season1", code: "S1", name: "Season champion", detail: "Earn a medal in every regatta event"),
         Achievement(id: "season3", code: "24", name: "Perfect season", detail: "Gold in every regatta event"),
         Achievement(id: "ivall", code: "IV", name: "Every rep", detail: "Hit the target on every interval"),
+        Achievement(id: "wild8", code: "8/8", name: "Field naturalist", detail: "Spot all eight animals"),
         Achievement(id: "combo5", code: "×5", name: "Five in a row", detail: "Hit 5 speed gates in a row"),
         Achievement(id: "p10", code: "P10", name: "Power ten", detail: "Find 8% extra speed in a Power 10"),
     ]
@@ -135,6 +136,11 @@ struct ProgressState: Codable, Equatable {
     var journeys: [String: Double] = [:]
     var season: [String: Int] = [:]
     var journeyID = "gota"
+    var owned: [String] = []
+    var cosmetics = Cosmetics()
+    var livery = "stillwater"
+    var wildlife: [String: Int] = [:]
+    var factIndex: Int?
 
     init() {}
 
@@ -150,7 +156,17 @@ struct ProgressState: Codable, Equatable {
         journeys = try c.decodeIfPresent([String: Double].self, forKey: .journeys) ?? [:]
         season = try c.decodeIfPresent([String: Int].self, forKey: .season) ?? [:]
         journeyID = try c.decodeIfPresent(String.self, forKey: .journeyID) ?? "gota"
+        owned = try c.decodeIfPresent([String].self, forKey: .owned) ?? []
+        cosmetics = try c.decodeIfPresent(Cosmetics.self, forKey: .cosmetics) ?? Cosmetics()
+        livery = try c.decodeIfPresent(String.self, forKey: .livery) ?? "stillwater"
+        wildlife = try c.decodeIfPresent([String: Int].self, forKey: .wildlife) ?? [:]
+        factIndex = try c.decodeIfPresent(Int.self, forKey: .factIndex)
     }
+
+    var animalsSeen: Int { Animal.allCases.filter { (wildlife[$0.rawValue] ?? 0) > 0 }.count }
+
+    /// Liveries unlock with your level.
+    func hasLivery(_ l: Livery) -> Bool { level >= l.level }
 
     var level: Int { Levels.level(xp: xp) }
 

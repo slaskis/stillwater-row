@@ -65,6 +65,8 @@ struct RowSetup {
     var challenge: DailyChallenge? = nil
     var journey: Journey? = nil
     var baseSplit: Double = 150
+    var condition: Condition = .dawn
+    var scenery: Scenery = .river
 }
 
 private final class DisplayLinkProxy: NSObject {
@@ -103,6 +105,9 @@ final class RowGame {
 
     let world = RiverScene()
     let cox = Cox()
+    let sound = SoundEngine()
+    /// Ticks at this stroke rate to row along to (0 = off).
+    @ObservationIgnored var beatRate = 0
     @ObservationIgnored var onFinish: ((RowResult) -> Void)?
 
     @ObservationIgnored private weak var link: BluetoothLink?
@@ -148,6 +153,11 @@ final class RowGame {
     @ObservationIgnored private var journeyNext: JourneyStop?
     @ObservationIgnored private var journeyReached: [String] = []
     @ObservationIgnored private var challengeDone = false
+    @ObservationIgnored private var spotted: [Animal] = []
+    @ObservationIgnored private var cheered = false
+    @ObservationIgnored private var nextBeat: Double = 0
+    @ObservationIgnored private var musicOn = false
+    @ObservationIgnored private var rainOn = false
 
     init() {
         physics.v = 3.6   // already gliding when the app opens
@@ -161,6 +171,26 @@ final class RowGame {
         link.onStroke = { [weak self] in
             MainActor.assumeIsolated { self?.stroke(fromConsole: true) }
         }
+        cox.sound = sound
+        world.onSighting = { [weak self] s in self?.sighted(s) }
+        world.onBottle = { [weak self] msg in self?.bottle(hasMessage: msg) }
+        world.onLightning = { [weak self] k in self?.sound.thunder(k) }
+        dressBoat()
+    }
+
+    /// Puts the player's livery, hat, pet, flag and wake on the boat.
+    func dressBoat() {
+        guard let progress else { return }
+        world.boat.apply(livery: Livery.with(id: progress.state.livery))
+        world.boat.setCosmetics(progress.state.cosmetics)
+    }
+
+    /// How the river looks on the dock, between rows.
+    func setHomeLook(_ condition: Condition, scenery: Scenery) {
+        guard phase == .home else { return }
+        world.setLook(condition, scenery: scenery)
+        rainOn = condition.look.rain
+        sound.setRain(rainOn)
     }
 
     func startLoop() {
@@ -225,6 +255,15 @@ final class RowGame {
             journeyNext = nil
         }
 
+        spotted = []
+        cheered = false
+        nextBeat = 0
+        beatRate = UserDefaults.standard.integer(forKey: "beat")
+        sound.effectsEnabled = UserDefaults.standard.object(forKey: "effects") as? Bool ?? true
+        world.setLook(s.condition, scenery: s.scenery)
+        rainOn = s.condition.look.rain
+        sound.setRain(rainOn)
+        dressBoat()
         world.reset(finishAt: s.piece.finishDistance)
         if let rival { world.ghost.setLabel(rival.tag) }
         world.setCrews(fleet?.boats.map(\.crew) ?? [])
@@ -250,6 +289,7 @@ final class RowGame {
     func pause() {
         guard phase == .rowing || phase == .countdown else { return }
         phase = .paused
+        sound.setMusic(strokeRate: 0, level: 0)
     }
 
     func resume() {
@@ -257,6 +297,7 @@ final class RowGame {
         lastFrame = 0
         eventIntro = nil
         phase = .rowing
+        startMusic()
     }
 
     func endSession() {
@@ -283,8 +324,12 @@ final class RowGame {
         world.setCrews([])
         world.setStorm(false)
         if cameraMode == 3 { cameraMode = 0 }
+        world.sightingsEnabled = false
+        stopMusic()
         nextDemoStroke = simT + 1
         phase = .home
+        let prefs = Launcher.Prefs.current
+        setHomeLook(prefs.resolvedCondition(), scenery: prefs.resolvedScenery(journey: progress?.state.journeyID ?? "gota"))
     }
 
     func updateResult(_ change: (inout RowResult) -> Void) {
@@ -311,6 +356,8 @@ final class RowGame {
             lastStrokeAt = simT
         }
         stepPhysics(dt)
+        world.boat.updateTrail(speed: phase == .paused ? 0 : physics.v)
+        world.sightingsEnabled = phase == .rowing && (engine?.started ?? false)
 
         if phase == .rowing, var eng = engine {
             let completed = eng.advance(dt: dt, distance: physics.d, watts: currentWatts)
@@ -348,16 +395,28 @@ final class RowGame {
             world.updateCrews(positions, time: simT, dt: dt)
         }
         if let storm {
-            world.applyStorm(StormChase.darkness(gap: storm.gap(physics.d)), dt: dt, time: simT, wallAt: storm.position)
+            let dark = StormChase.darkness(gap: storm.gap(physics.d))
+            world.applyStorm(dark, dt: dt, time: simT, wallAt: storm.position)
+            let wet = (setup?.condition.look.rain ?? false) || dark > 0.4
+            if wet != rainOn {
+                rainOn = wet
+                sound.setRain(wet)
+            }
         }
         if let gates { world.syncGates(gates.gates, distance: physics.d, time: simT) }
         world.update(dt: dt, time: simT, distance: physics.d, ghostDistance: ghostDistance)
+
+        if phase == .rowing, beatRate > 0, engine?.started ?? false, simT >= nextBeat {
+            nextBeat = simT + 60 / Double(beatRate)
+            sound.tick()
+        }
 
         hudClock += dt
         if hudClock >= 0.1, phase == .rowing || phase == .countdown {
             hudClock = 0
             refreshHUD()
             checkChallenge(finished: false)
+            if musicOn { sound.setMusic(strokeRate: hud.strokeRate, level: musicLevel()) }
         }
     }
 
@@ -388,6 +447,7 @@ final class RowGame {
         lastStrokeAt = simT
         if !fromConsole { physics.tapStroke() }
         world.boat.stroke(recovery: gap - RowPhysics.driveTime)
+        if phase == .rowing { sound.splash(volume: 0.22) }
         guard phase == .rowing, var eng = engine else { return }
         eng.stroke(at: simT)
         engine = eng
@@ -538,6 +598,7 @@ final class RowGame {
                 if sign > 0 {
                     let pos = fleet.standing(me: physics.d, at: t).position
                     addScore(100, label: "You passed \(name)")
+                    sound.pop()
                     cox.say("That's \(name). Position \(pos).", interrupt: true)
                     if let taunts { cox.rivalSay(Cox.pick(taunts.behind)) }
                 } else {
@@ -553,6 +614,7 @@ final class RowGame {
     private func journeyTick(_ d: Double) {
         guard let stop = journeyNext, let j = setup?.journey, journeyStart + d >= stop.meters else { return }
         show("Reached \(stop.name)", stop.fact)
+        sound.chime()
         cox.say("You have reached \(stop.name).", interrupt: true)
         score += 75
         journeyReached.append(stop.name)
@@ -572,10 +634,12 @@ final class RowGame {
             case .hit(let g, _, let combo):
                 let mult = min(combo, 5)
                 if case .hit(let pts) = g.state { score += pts; popUp("+\(pts)" + (mult > 1 ? "  ×\(mult)" : ""), good: true) }
+                sound.ding(gold: g.gold)
                 if combo >= 5 { unlock("combo5") }
                 if combo >= 3 { cox.say("\(combo) in a row!") } else if g.gold { cox.say("Gold!") }
             case .missed(_, let split):
                 popUp("Missed · \(Fmt.split(split))", good: false)
+                sound.thud()
             }
         }
     }
@@ -601,6 +665,7 @@ final class RowGame {
                 cox.say("Ten seconds. Sit ready.", interrupt: true)
             case .restBeep:
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                sound.tick()
             case .repDone(let r):
                 let n = runner.reps.count
                 if r.hit { score += 100 }
@@ -653,6 +718,7 @@ final class RowGame {
         guard let progress, progress.unlock(id), let a = Achievement.with(id: id) else { return }
         newAchievements.append(a)
         show(a.name, a.detail, medal: a.code)
+        sound.chime()
         score += 50
         cox.say(Cox.pick(["Milestone. ", "Nice, that's ", "New medal: "]) + a.name + ".")
     }
@@ -677,6 +743,7 @@ final class RowGame {
         progress.update { $0.challenges[DailyChallenge.dayKey()] = true }
         score += 300
         show("Daily challenge complete", "\(c.text) · +300", medal: "★")
+        sound.chime()
         cox.say("Daily challenge complete!", interrupt: true)
     }
 
@@ -800,11 +867,13 @@ final class RowGame {
                 guard let self, self.countdownToken == token, self.phase == .countdown else { return }
                 self.countdownText = step.text
                 self.cox.say(i == 2 ? Cox.pick(["Go!", "Row!", "Attention. Go!"]) : step.text, interrupt: true)
+                if i == 2 { self.sound.horn() }
                 try? await Task.sleep(for: .seconds(step.seconds))
             }
             guard let self, self.countdownToken == token, self.phase == .countdown else { return }
             self.countdownText = ""
             self.phase = .rowing
+            self.startMusic()
         }
     }
 
@@ -852,6 +921,11 @@ final class RowGame {
             if target > 750, left <= 500 { once("500", Cox.pick(["Last five hundred. Start building.", "Five hundred to go. Bring it up."])) }
             if target > 375, left <= 250 { once("250", Cox.pick(["Two fifty to go. Lift it!", "Two fifty. Squeeze it up!"])) }
             if target > 150, left <= 100 { once("100", "Last ten strokes. Everything!") }
+            if !cheered, left < 130, left > 0 {
+                cheered = true
+                sound.applause()
+                cox.say(Cox.pick(["Hear that crowd? Bring it home!", "The crowd is up! Last push!"]), interrupt: true)
+            }
         case .time(let total):
             let left = total - t
             if left <= total / 2 { once("half", "Halfway. Hold the rhythm.", interrupt: false) }
@@ -867,6 +941,61 @@ final class RowGame {
             stopCalled = true
             cox.say(Cox.pick(["Keep it moving. Back on the oars.", "Don't stop now. Pick it up.", "Come on, back to it."]))
         }
+    }
+
+    // MARK: - Wildlife, bottles and music
+
+    private func sighted(_ s: Sighting) {
+        guard phase == .rowing, let progress else { return }
+        let a = s.animal
+        let first = (progress.state.wildlife[a.rawValue] ?? 0) == 0
+        progress.update { $0.wildlife[a.rawValue, default: 0] += 1 }
+        if !spotted.contains(a) { spotted.append(a) }
+        if first {
+            score += a.points
+            show("New in your field guide: \(a.name)", "\(a.rarity) · +\(a.points)", medal: "+")
+            sound.chime()
+            cox.say(Cox.pick(["\(a.name) on the \(s.sideName)! A new one for the field guide.",
+                              "Look, on the \(s.sideName). \(a.name)! That one is new."]), interrupt: true)
+            if progress.state.animalsSeen == Animal.allCases.count { unlock("wild8") }
+        } else if a.rarity != "Common" {
+            score += a.points / 4
+            cox.say(Cox.pick(["\(a.name) on the \(s.sideName).", "Look, \(a.name.lowercased()) on the \(s.sideName) bank."]))
+        }
+    }
+
+    private func bottle(hasMessage: Bool) {
+        guard phase == .rowing, let progress else { return }
+        sound.plink()
+        score += 20
+        popUp("+20", good: true)
+        guard hasMessage else { return }
+        let fact = progress.nextFact()
+        show("Message in a bottle", fact)
+        cox.say("Message in a bottle. " + fact)
+    }
+
+    private func startMusic() {
+        guard UserDefaults.standard.object(forKey: "music") as? Bool ?? true else { return }
+        musicOn = true
+        sound.startMusic()
+    }
+
+    private func stopMusic() {
+        guard musicOn else { return }
+        musicOn = false
+        sound.stopMusic()
+    }
+
+    /// 0 easy … 3 flat out: how much of the band is playing.
+    private func musicLevel() -> Int {
+        guard phase == .rowing, let eng = engine, eng.started, simT - lastStrokeAt <= 5 else { return 0 }
+        if let runner = intervals { return runner.current?.kind == .work ? 3 : 0 }
+        let nearFinish = eng.piece.finishDistance.map { $0 - physics.d < 250 } ?? false
+        if power10.phase == .on || nearFinish || (storm != nil && world.stormK > 0.6) { return 3 }
+        let base = setup?.baseSplit ?? 150
+        let split = physics.v > 0.3 ? 500 / physics.v : 999
+        return split < base - 1 || gates?.live != nil ? 2 : 1
     }
 
     // MARK: - Finish
@@ -997,6 +1126,7 @@ final class RowGame {
         }
         r.score = score
         r.newAchievements = newAchievements
+        r.spotted = spotted
 
         result = r
         banners = []
@@ -1004,6 +1134,12 @@ final class RowGame {
         hint = nil
         eventIntro = nil
         phase = .finished
+        world.sightingsEnabled = false
+        stopMusic()
+        if r.isCelebration {
+            sound.applause()
+            world.celebrate()
+        }
         UIApplication.shared.isIdleTimerDisabled = false
         cox.say(complete ? Cox.pick(["Easy oar. Well rowed.", "And easy. Lovely work.", "Easy there. Good row."]) : Cox.pick(["Easy oar.", "And easy."]), interrupt: true)
         if let xp = r.xp, xp.leveledUp {

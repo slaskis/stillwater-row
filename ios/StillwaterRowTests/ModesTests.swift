@@ -111,4 +111,28 @@ final class ModesTests: XCTestCase {
         XCTAssertEqual(Piece.with(id: "ev6").finishDistance, 2000)
         XCTAssertFalse(Piece.all.contains { $0.hidden })
     }
+
+    func testConditionFollowsTheClock() {
+        let cal = Calendar.current
+        func at(_ h: Int) -> Date { cal.date(bySettingHour: h, minute: 0, second: 0, of: Date())! }
+        XCTAssertEqual(Condition.auto(at(7)), .dawn)
+        XCTAssertEqual(Condition.auto(at(12), random: 0.5), .day)
+        XCTAssertEqual(Condition.auto(at(12), random: 0.1), .rain)
+        XCTAssertEqual(Condition.auto(at(17)), .sunset)
+        XCTAssertEqual(Condition.auto(at(22)), .night)
+    }
+
+    func testCosmeticsSubscriptAndOldSavesDecode() throws {
+        var c = Cosmetics()
+        c[.hat] = "crown"
+        XCTAssertEqual(c.hat, "crown")
+        c[.hat] = nil
+        XCTAssertNil(c.hat)
+        // A save from before the shop existed still loads.
+        let old = #"{"xp":1200,"coins":40,"lifetime":5000,"unlocked":{},"days":[],"challenges":{},"journeys":{},"season":{},"journeyID":"gota"}"#
+        let p = try JSONDecoder().decode(ProgressState.self, from: Data(old.utf8))
+        XCTAssertEqual(p.xp, 1200)
+        XCTAssertEqual(p.livery, "stillwater")
+        XCTAssertTrue(p.owned.isEmpty)
+    }
 }

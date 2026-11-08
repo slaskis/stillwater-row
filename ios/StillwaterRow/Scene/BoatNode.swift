@@ -23,6 +23,18 @@ final class BoatNode {
     private var recovery: Double = 1.6
     private var splashed = false
 
+    private var isGhost = false
+    private var hullMat: SCNMaterial?
+    private var shirtMat: SCNMaterial?
+    private var bladeMat: SCNMaterial?
+    private var cosmetics = Cosmetics()
+    private var hatNode: SCNNode?
+    private var petNode: SCNNode?
+    private var flagNode: SCNNode?
+    private var trailHolder: SCNNode?
+    private var trailSystem: SCNParticleSystem?
+    private var trailID: String?
+
     /// Called with the blade tips' world positions when the blades enter and leave the water.
     var onSplash: ((SCNVector3, Double) -> Void)?
 
@@ -44,6 +56,7 @@ final class BoatNode {
             return m
         }()
         let isGhost = style.isGhost
+        self.isGhost = isGhost
         func mat(_ hex: UInt32) -> SCNMaterial { isGhost ? ghost : Palette.lambert(hex) }
         var hullHex: UInt32 = 0xf2efe6, shirtHex: UInt32 = 0xe39a3b, bladeHex: UInt32 = 0xe8743a
         if case .crew(let c) = style {
@@ -64,14 +77,17 @@ final class BoatNode {
 
         let hull = SCNSphere(radius: 1)
         hull.segmentCount = 24
-        root.addChildNode(part(hull, mat(hullHex), SCNVector3(x: 0, y: 0.05, z: 0), scale: SCNVector3(x: 0.25, y: 0.12, z: 4.1)))
+        hullMat = mat(hullHex)
+        shirtMat = mat(shirtHex)
+        bladeMat = mat(bladeHex)
+        root.addChildNode(part(hull, hullMat!, SCNVector3(x: 0, y: 0.05, z: 0), scale: SCNVector3(x: 0.25, y: 0.12, z: 4.1)))
         root.addChildNode(part(SCNBox(width: 1.72, height: 0.03, length: 0.05, chamferRadius: 0), mat(0x2c3436), SCNVector3(x: 0, y: 0.33, z: 0)))
 
         root.addChildNode(body)
         body.addChildNode(part(SCNBox(width: 0.3, height: 0.12, length: 0.75, chamferRadius: 0.03), mat(0x2c3436), SCNVector3(x: 0, y: 0.24, z: 0.42)))
         lean.position = SCNVector3(x: 0, y: 0.24, z: 0)
         body.addChildNode(lean)
-        lean.addChildNode(part(SCNCone(topRadius: 0.15, bottomRadius: 0.2, height: 0.62), mat(shirtHex), SCNVector3(x: 0, y: 0.31, z: 0)))
+        lean.addChildNode(part(SCNCone(topRadius: 0.15, bottomRadius: 0.2, height: 0.62), shirtMat!, SCNVector3(x: 0, y: 0.31, z: 0)))
         lean.addChildNode(part(SCNSphere(radius: 0.12), mat(0xd8a888), SCNVector3(x: 0, y: 0.74, z: 0)))
 
         for side: Float in [1, -1] {
@@ -82,7 +98,7 @@ final class BoatNode {
             let shaft = SCNCylinder(radius: 0.022, height: 2.9)
             shaft.radialSegmentCount = 6
             pitch.addChildNode(part(shaft, mat(0x2b2f31), SCNVector3(x: side * 0.6, y: 0, z: 0), euler: SCNVector3(x: 0, y: 0, z: .pi / 2)))
-            pitch.addChildNode(part(SCNBox(width: 0.5, height: 0.17, length: 0.025, chamferRadius: 0), mat(bladeHex), SCNVector3(x: side * 1.85, y: 0, z: 0)))
+            pitch.addChildNode(part(SCNBox(width: 0.5, height: 0.17, length: 0.025, chamferRadius: 0), bladeMat!, SCNVector3(x: side * 1.85, y: 0, z: 0)))
             let tip = SCNNode()
             tip.position = SCNVector3(x: side * 1.85, y: 0, z: 0)
             pitch.addChildNode(tip)
@@ -98,6 +114,59 @@ final class BoatNode {
         }
         if case .crew(let c) = style { setLabel(c.name) }
         animate(dt: 0)
+    }
+
+    /// Recolours hull, shirt and blades in place. No effect on the ghost.
+    func apply(livery: Livery) {
+        guard !isGhost else { return }
+        hullMat?.diffuse.contents = UIColor(hex: livery.hull)
+        shirtMat?.diffuse.contents = UIColor(hex: livery.shirt)
+        bladeMat?.diffuse.contents = UIColor(hex: livery.blade)
+    }
+
+    /// Attaches, replaces or removes the hat, pet, stern flag and wake trail. Nil fields remove. No effect on the ghost.
+    func setCosmetics(_ c: Cosmetics) {
+        guard !isGhost else { return }
+        if c.hat != cosmetics.hat || hatNode == nil && c.hat != nil {
+            hatNode?.removeFromParentNode()
+            hatNode = c.hat.flatMap { CosmeticModels.hat($0) }
+            if let hatNode { lean.addChildNode(hatNode) }
+        }
+        if c.pet != cosmetics.pet || petNode == nil && c.pet != nil {
+            petNode?.removeFromParentNode()
+            petNode = c.pet.flatMap { CosmeticModels.pet($0) }
+            if let petNode { root.addChildNode(petNode) }
+        }
+        if c.flag != cosmetics.flag || flagNode == nil && c.flag != nil {
+            flagNode?.removeFromParentNode()
+            flagNode = c.flag.flatMap { CosmeticModels.flag($0) }
+            if let flagNode { root.addChildNode(flagNode) }
+        }
+        if c.trail != trailID {
+            trailHolder?.removeFromParentNode()
+            trailHolder = nil
+            trailSystem = nil
+            trailID = c.trail
+            if let id = c.trail, let ps = CosmeticModels.trail(id) {
+                let holder = SCNNode()
+                holder.position = SCNVector3(x: 0, y: 0.15, z: 3.9)
+                holder.addParticleSystem(ps)
+                root.addChildNode(holder)
+                trailHolder = holder
+                trailSystem = ps
+            }
+        }
+        cosmetics = c
+    }
+
+    /// Call every frame with the boat's speed (m/s). Emits wake particles only while moving.
+    func updateTrail(speed: Double) {
+        guard let ps = trailSystem else { return }
+        ps.birthRate = speed >= 0.6 ? 22 : 0
+        if trailID == "rainbow" {
+            let hue = CGFloat((CACurrentMediaTime() * 0.5).truncatingRemainder(dividingBy: 1))
+            ps.particleColor = UIColor(hue: hue, saturation: 0.75, brightness: 0.96, alpha: 1)
+        }
     }
 
     func setLabel(_ text: String) {
