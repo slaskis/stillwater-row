@@ -26,8 +26,33 @@ extension UIColor {
 }
 
 enum Palette {
+    /// Dawn, the default look until `RiverScene.setLook` says otherwise.
     static let fog = UIColor(hex: 0xc4ced0)
     static let skyTop = UIColor(hex: 0x6e8ea4)
+
+    /// Blends two sRGB hex colours channel by channel.
+    static func mixHex(_ a: UInt32, _ b: UInt32, _ t: Double) -> UInt32 {
+        let k = clamp(t, 0, 1)
+        func ch(_ x: UInt32, _ shift: UInt32) -> Double { Double((x >> shift) & 0xff) }
+        func m(_ shift: UInt32) -> UInt32 { UInt32(clamp((ch(a, shift) + (ch(b, shift) - ch(a, shift)) * k).rounded(), 0, 255)) << shift }
+        return m(16) | m(8) | m(0)
+    }
+
+    static func vectorValue(_ v: SIMD3<Float>) -> NSValue {
+        NSValue(scnVector3: SCNVector3(x: v.x, y: v.y, z: v.z))
+    }
+
+    /// Unlit, additive, no depth writes: for glows, lantern reflections and sparks.
+    static func additive(_ image: UIImage, opacity: CGFloat = 1) -> SCNMaterial {
+        let m = SCNMaterial()
+        m.diffuse.contents = image
+        m.lightingModel = .constant
+        m.isDoubleSided = true
+        m.blendMode = .add
+        m.writesToDepthBuffer = false
+        m.transparency = opacity
+        return m
+    }
 
     /// sRGB hex to linear RGB, for vertex colours and shader arguments, which SceneKit doesn't convert.
     static func linear(_ hex: UInt32) -> SIMD3<Float> {
@@ -147,6 +172,44 @@ enum Tex {
                 ctx.cgContext.clip(to: CGRect(x: 3, y: 0, width: 2, height: 64))
                 ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
             }
+        }
+    }
+
+    /// A soft warm glow for lanterns, the lighthouse lamp and fireworks.
+    static func lanternGlow() -> UIImage {
+        let size = CGSize(width: 64, height: 64)
+        return renderer(size, opaque: false).image { ctx in
+            let colors = [UIColor(red: 1, green: 236 / 255, blue: 190 / 255, alpha: 1).cgColor,
+                          UIColor(red: 1, green: 170 / 255, blue: 80 / 255, alpha: 0.55).cgColor,
+                          UIColor(red: 0, green: 0, blue: 0, alpha: 0).cgColor] as CFArray
+            if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.25, 1]) {
+                ctx.cgContext.drawRadialGradient(g, startCenter: CGPoint(x: 32, y: 32), startRadius: 0,
+                                                 endCenter: CGPoint(x: 32, y: 32), endRadius: 32, options: [])
+            }
+        }
+    }
+
+    /// A white spark for fireworks, so the particle colour shows true.
+    static func fireworkSpark() -> UIImage {
+        let size = CGSize(width: 32, height: 32)
+        return renderer(size, opaque: false).image { ctx in
+            let colors = [UIColor(white: 1, alpha: 1).cgColor, UIColor(white: 1, alpha: 0.45).cgColor, UIColor(white: 1, alpha: 0).cgColor] as CFArray
+            if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 0.3, 1]) {
+                ctx.cgContext.drawRadialGradient(g, startCenter: CGPoint(x: 16, y: 16), startRadius: 0,
+                                                 endCenter: CGPoint(x: 16, y: 16), endRadius: 16, options: [])
+            }
+        }
+    }
+
+    /// The Swedish flag, for cottages and the grandstand.
+    static func cottageFlag() -> UIImage {
+        let size = CGSize(width: 96, height: 60)
+        return renderer(size, opaque: true).image { ctx in
+            UIColor(hex: 0x006aa7).setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            UIColor(hex: 0xfecc02).setFill()
+            ctx.fill(CGRect(x: 30, y: 0, width: 12, height: 60))
+            ctx.fill(CGRect(x: 0, y: 24, width: 96, height: 12))
         }
     }
 
