@@ -6,6 +6,7 @@ struct StillwaterRowApp: App {
     @State private var link = BluetoothLink()
     @State private var health = HealthStore()
     @State private var game = RowGame()
+    @State private var progress = ProgressStore()
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +14,7 @@ struct StillwaterRowApp: App {
                 .environment(link)
                 .environment(health)
                 .environment(game)
+                .environment(progress)
                 .preferredColorScheme(.dark)
                 .statusBarHidden(game.phase != .home)
                 .persistentSystemOverlays(game.phase == .home ? .automatic : .hidden)

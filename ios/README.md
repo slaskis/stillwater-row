@@ -2,12 +2,20 @@
 
 A native rewrite of Stillwater Row in SwiftUI, SceneKit and SwiftData, with Apple Health.
 
-## What's in this first version
+## What's in it
 
 - **Rower link over Bluetooth:** FitShow consoles such as the Trekkrunner TR020 (`FS-…`), plus standard FTMS rowers. The app remembers the console and reconnects on its own whenever it wakes up. Without a rower, tapping the screen once per stroke works.
 - **3D river:** endless autumn river with spruce and birch, racing buoys, distance signs, milestone gates and a finish banner. The boat glides when you stop rowing.
 - **Ghost racing:** race your best or your last row on the same piece, second by second, or a pace boat.
-- **Pieces:** Just Row, 1,000 m, 2,000 m, 5,000 m and 20 minutes, with splits every 500 m.
+- **Pieces:** Just Row, 1,000 m, 2,000 m, 5,000 m, 20 minutes, 4 × 500 m intervals, a 1-2-3-2-1 pyramid, and Outrun the storm.
+- **Race the fleet:** six crews spread out ahead to reel in, worth points each time you pass one.
+- **Outrun the storm:** a squall starts 80 m behind and keeps speeding up. The sky darkens, rain sets in and lightning flashes as it closes.
+- **Speed gates:** every 400 m, beat a target split over the last 100 m. Hits in a row multiply the points; every fourth gate is gold.
+- **Intervals:** targets set a little faster than your recent split, with the cox calling each rep and rest.
+- **Power 10s and rhythm:** the cox calls a Power 10 every couple of minutes and scores the extra speed. A steady stroke rate fills the rhythm bar until you're in the zone.
+- **Regatta season:** eight events from Söderköping to Stockholm, including duels with Old Man Svensson and Ingrid Holm, who talk back. Each medal unlocks the next event.
+- **Journeys:** every metre counts towards rowing Göta kanal or out through the Stockholm archipelago, with stops along the way.
+- **Progress:** points, XP, levels and ranks, coins, 21 milestones, a day streak and a daily challenge.
 - **Cox:** spoken start, splits, overtakes and the final stretch, using the best English voice installed on the device. Music only ducks while the cox is talking.
 - **Apple Health:**
   - Each row is saved as an indoor rowing workout, with distance in 10-second slices and active energy.
@@ -18,7 +26,7 @@ A native rewrite of Stillwater Row in SwiftUI, SceneKit and SwiftData, with Appl
   - The results screen shows heart rate once the sync has happened ("Check again").
   - Any standard Bluetooth chest strap or arm band gives live heart rate on screen.
 
-The game features from the web version (fleet racing, storm, regatta season, journeys, shop and so on) aren't in this version yet. They'll be ported in stages.
+Still to come from the web version: weather and time of day, wildlife, the boat shop, music and sound effects.
 
 ## Build it
 
@@ -32,7 +40,7 @@ You need a Mac with Xcode 16 or later, and an iPad or iPhone on iOS 18 or later.
 
 Close the Synteam app before connecting, because the console only accepts one connection at a time.
 
-Run the unit tests with ⌘U. They cover the FitShow and FTMS decoders, physics, splits and formatting.
+Run the unit tests with ⌘U. They cover the FitShow and FTMS decoders, physics, splits, formatting, and the fleet, storm, gates, intervals, season and level rules.
 
 ## Layout
 

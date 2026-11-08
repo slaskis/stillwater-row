@@ -6,10 +6,9 @@ struct ResultsView: View {
     let result: RowResult
     @Environment(RowGame.self) private var game
     @Environment(HealthStore.self) private var health
+    @Environment(ProgressStore.self) private var progress
     @State private var checkingHeartRate = false
     @Query(sort: \RowSession.date, order: .reverse) private var sessions: [RowSession]
-    @AppStorage("rival") private var rivalRaw = RivalChoice.best.rawValue
-    @AppStorage("paceSplit") private var paceSplit = 130.0
 
     var body: some View {
         ScrollView {
@@ -30,6 +29,9 @@ struct ResultsView: View {
                     .font(.body.weight(.medium))
                 }
 
+                if let ev = result.event { EventResult(outcome: ev) }
+                RewardsSection(result: result)
+
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
                     tile(Fmt.split(result.averageSplit), "avg /500 m")
                     tile(String(format: "%.1f", result.averageRate), "avg s/m")
@@ -38,6 +40,8 @@ struct ResultsView: View {
                 }
 
                 heartRateSection
+
+                if !result.reps.isEmpty { RepsSection(reps: result.reps) }
 
                 Eyebrow(text: "Splits")
                 if result.splits.isEmpty {
@@ -49,9 +53,14 @@ struct ResultsView: View {
                 healthLine
 
                 HStack(spacing: 10) {
+                    if let next = nextEvent {
+                        Button("Next: \(next.name)") {
+                            Launcher.start(next.piece, event: next, sessions: sessions, prefs: .current, progress: progress, game: game)
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+                    }
                     Button("Row it again") {
-                        Launcher.start(result.piece, sessions: sessions, choice: RivalChoice(rawValue: rivalRaw) ?? .best,
-                                       pace: paceSplit, game: game)
+                        Launcher.start(result.piece, event: result.event?.event, sessions: sessions, prefs: .current, progress: progress, game: game)
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     Button("Back to the dock") { game.backToDock() }
@@ -67,6 +76,13 @@ struct ResultsView: View {
         }
         .background(Color.black.opacity(0.35).ignoresSafeArea())
         .foregroundStyle(Theme.mist)
+    }
+
+    /// The next regatta event, once this one has earned a medal.
+    private var nextEvent: SeasonEvent? {
+        guard let ev = result.event?.event, let i = Season.events.firstIndex(of: ev), i + 1 < Season.events.count,
+              Season.isUnlocked(i + 1, stars: progress.state.season) else { return nil }
+        return Season.events[i + 1]
     }
 
     private func tile(_ value: String, _ label: String) -> some View {
@@ -151,12 +167,104 @@ struct SplitChart: View {
     }
 }
 
-/// Resolves who you race and starts the countdown.
-@MainActor
-enum Launcher {
-    static func start(_ piece: Piece, sessions: [RowSession], choice: RivalChoice, pace: Double, game: RowGame) {
-        let rows = sessions.map(\.past)
-        let rival = Records.rival(for: piece, choice: choice, paceSplit: pace, rows: rows).rival
-        game.start(piece: piece, rival: rival, history: rows)
+/// Medals for a regatta event, with what it takes to do better.
+private struct EventResult: View {
+    let outcome: EventOutcome
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            StarRow(count: outcome.stars, size: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Eyebrow(text: "Regatta season · event \(outcome.event.number)")
+                Text(outcome.medal + (outcome.improved && outcome.previous > 0 ? " · new best" : "")).font(.headline)
+                Text(outcome.hint ?? "Gold. Nothing left to win here.").font(.footnote).foregroundStyle(Theme.dim)
+                if let next = outcome.unlockedNext {
+                    Text("Next event unlocked: \(next.name)").font(.footnote.weight(.semibold)).foregroundStyle(Theme.good)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Theme.amber.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// Points, XP, coins, new milestones, the journey and today's challenge.
+private struct RewardsSection: View {
+    let result: RowResult
+    @State private var fill = 0.0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let xp = result.xp {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("+\(Fmt.meters(Double(xp.gain))) XP").font(Theme.numbers(24, .bold)).foregroundStyle(Theme.amber)
+                        Text("\(Fmt.meters(Double(result.score))) points · +\(Fmt.meters(Double(result.score))) coins")
+                            .font(.footnote.monospacedDigit()).foregroundStyle(Theme.dim)
+                        Spacer()
+                        Text(xp.leveledUp ? "Level up! \(xp.levelAfter) · \(Levels.rank(xp.levelAfter))" : "Level \(xp.levelAfter)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(xp.leveledUp ? Theme.amber : Theme.mist)
+                    }
+                    ProgressView(value: fill).tint(Theme.amber)
+                        .onAppear { withAnimation(.easeOut(duration: 1.2).delay(0.2)) { fill = Levels.fraction(xp: xp.after) } }
+                }
+            } else if result.score > 0 {
+                Text("\(Fmt.meters(Double(result.score))) points").font(Theme.numbers(22)).foregroundStyle(Theme.amber)
+            }
+            if result.gatesTried > 0 {
+                Text("Speed gates: \(result.gatesHit) of \(result.gatesTried)" + (result.bestCombo > 1 ? " · best run ×\(result.bestCombo)" : ""))
+                    .font(.footnote).foregroundStyle(Theme.dim)
+            }
+            if !result.newAchievements.isEmpty {
+                Eyebrow(text: "New milestones")
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
+                    ForEach(result.newAchievements) { MedalTile(achievement: $0, earned: true) }
+                }
+            }
+            if let j = result.journey {
+                VStack(alignment: .leading, spacing: 4) {
+                    Eyebrow(text: "Journey · \(j.journey.name)")
+                    ProgressView(value: j.after / j.journey.meters).tint(Theme.ghost)
+                    Text(journeyText(j)).font(.footnote).foregroundStyle(j.complete ? Theme.good : Theme.dim)
+                }
+            }
+            if let c = result.challengeText {
+                Label(result.challengeDone ? "Daily challenge complete: \(c)" : "Daily challenge: \(c)",
+                      systemImage: result.challengeDone ? "star.fill" : "star")
+                    .font(.footnote)
+                    .foregroundStyle(result.challengeDone ? Theme.amber : Theme.dim)
+            }
+        }
+    }
+
+    private func journeyText(_ j: JourneyLine) -> String {
+        let rowed = String(format: "%.1f", (j.after - j.before) / 1000)
+        var t = "+\(rowed) km"
+        if !j.reached.isEmpty { t += " · reached " + j.reached.joined(separator: ", ") }
+        if j.complete { return t + ". You made it to the end." }
+        if let next = j.next {
+            let left = next.meters - j.after
+            t += " · " + (left < 1000 ? "\(Fmt.meters(left)) m" : String(format: "%.1f km", left / 1000)) + " to \(next.name)"
+        }
+        return t
+    }
+}
+
+/// Each hard piece of an interval workout against its target.
+private struct RepsSection: View {
+    let reps: [RepResult]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Eyebrow(text: "Reps")
+            ForEach(Array(reps.enumerated()), id: \.offset) { i, r in
+                HStack {
+                    Text("Rep \(i + 1)").font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text(Fmt.clock(r.split, tenths: true)).font(Theme.numbers(18)).foregroundStyle(r.hit ? Theme.good : Theme.bad)
+                    Text("target \(Fmt.clock(r.target))").font(.footnote.monospacedDigit()).foregroundStyle(Theme.dim).frame(width: 96, alignment: .trailing)
+                }
+            }
+        }
     }
 }

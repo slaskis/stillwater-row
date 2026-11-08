@@ -56,7 +56,7 @@ struct SessionEngine {
         switch piece.goal {
         case .distance(let m): return distance >= m
         case .time(let s): return t >= s
-        case .open: return false
+        case .open, .storm, .intervals: return false
         }
     }
 
@@ -64,6 +64,7 @@ struct SessionEngine {
         switch piece.goal {
         case .distance(let m): return clamp(distance / m, 0, 1)
         case .time(let s): return clamp(t / s, 0, 1)
+        case .storm, .intervals: return 0
         case .open: return distance.truncatingRemainder(dividingBy: 500) / 500
         }
     }
@@ -75,6 +76,10 @@ struct SessionEngine {
             return "\(Fmt.meters(max(0, m - distance))) m to go"
         case .time(let s):
             return "\(Fmt.clock(max(0, s - t))) left"
+        case .storm:
+            return "Survived \(Fmt.clock(t))"
+        case .intervals:
+            return ""
         case .open:
             let next = (floor(distance / 500) + 1) * 500
             return "\(Fmt.meters(next - distance)) m to \(Fmt.marker(Int(next)))"

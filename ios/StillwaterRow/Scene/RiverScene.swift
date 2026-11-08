@@ -55,7 +55,17 @@ final class RiverScene {
     let ghost = BoatNode(style: .ghost)
     var cameraMode = 0
 
-    private let water = SCNNode()
+    let water = SCNNode()
+    let waterMaterial = SCNMaterial()
+    let ambientLight = SCNLight()
+    let sunLight = SCNLight()
+    var crewBoats: [BoatNode] = []
+    var gateNodes: [Int: GateNode] = [:]
+    var stormWall: SCNNode?
+    var rain: SCNParticleSystem?
+    var stormK: Double = 0
+    var skyK: Double = -1
+    var flash: Double = 0
     private var chunks: [Int: SCNNode] = [:]
     private var finishAt: Int = 0
     private var ripples: [(node: SCNNode, age: Double, size: Double)] = []
@@ -80,6 +90,7 @@ final class RiverScene {
         for (_, node) in chunks { node.removeFromParentNode() }
         chunks.removeAll()
         cameraPlaced = false
+        clearGates()
     }
 
     func update(dt: Double, time: Double, distance: Double, ghostDistance: Double?) {
@@ -114,7 +125,7 @@ final class RiverScene {
         cameraNode.camera = camera
         scene.rootNode.addChildNode(cameraNode)
 
-        let ambient = SCNLight()
+        let ambient = ambientLight
         ambient.type = .ambient
         ambient.color = UIColor(hex: 0xc9d3d4)
         ambient.intensity = 520
@@ -123,7 +134,7 @@ final class RiverScene {
         scene.rootNode.addChildNode(ambientNode)
 
         // Low autumn sun ahead of the boat, so the water glitters.
-        let sun = SCNLight()
+        let sun = sunLight
         sun.type = .directional
         sun.color = UIColor(hex: 0xffe0b0)
         sun.intensity = 780
@@ -136,7 +147,7 @@ final class RiverScene {
 
     private func setUpWater() {
         let plane = SCNPlane(width: 1400, height: 1400)
-        let m = SCNMaterial()
+        let m = waterMaterial
         m.lightingModel = .constant
         m.diffuse.contents = UIColor(hex: 0x15302f)
         m.shaderModifiers = [.surface: Self.waterShader]
@@ -193,7 +204,7 @@ final class RiverScene {
 
     // MARK: - Per frame
 
-    private func ripple(at p: SCNVector3, size: Double) {
+    func ripple(at p: SCNVector3, size: Double) {
         let i = rippleIndex % ripples.count
         rippleIndex += 1
         ripples[i].node.position = SCNVector3(x: p.x, y: 0.03, z: p.z)
@@ -229,6 +240,9 @@ final class RiverScene {
         case 2:  // high
             target = b - f * 18 + r * 3 + SIMD3(0, 15, 0)
             look = b + f * 20 + r * 2
+        case 3:  // looking back down the river
+            target = b + f * 10 + r * 1.2 + SIMD3(0, 3.4, 0)
+            look = b - f * 30 + SIMD3(0, 1.5, 0)
         default: // behind
             target = b - f * 9 + r * 1.6 + SIMD3(0, 3.1, 0)
             look = b + f * 14 + r * 1.5 + SIMD3(0, 0.6, 0)

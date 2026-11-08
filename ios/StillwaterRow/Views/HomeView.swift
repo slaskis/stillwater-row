@@ -4,6 +4,7 @@ import SwiftUI
 /// The dock: pick a piece and a rival, connect the rower and Apple Health, see your logbook.
 struct HomeView: View {
     @Environment(RowGame.self) private var game
+    @Environment(ProgressStore.self) private var progress
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Query(sort: \RowSession.date, order: .reverse) private var sessions: [RowSession]
 
@@ -11,6 +12,7 @@ struct HomeView: View {
     @AppStorage("rival") private var rivalRaw = RivalChoice.best.rawValue
     @AppStorage("paceSplit") private var paceSplit = 130.0
     @AppStorage("cox") private var coxOn = true
+    @AppStorage("gates") private var gatesOn = true
 
     private var piece: Piece { Piece.with(id: pieceID) }
     private var choice: RivalChoice { RivalChoice(rawValue: rivalRaw) ?? .best }
@@ -47,10 +49,12 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .panel(18)
 
+        RankCard()
+
         VStack(alignment: .leading, spacing: 10) {
             Eyebrow(text: "Piece")
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(Piece.all) { p in pieceButton(p) }
+                ForEach(Piece.all.filter { !$0.hidden }) { p in pieceButton(p) }
             }
         }
         .panel(18)
@@ -71,13 +75,24 @@ struct HomeView: View {
             }
             .buttonStyle(QuietButtonStyle())
             Text(rivalNote).font(.footnote).foregroundStyle(Theme.dim).fixedSize(horizontal: false, vertical: true)
+            Toggle(isOn: $gatesOn) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Speed gates")
+                    Text("Every 400 m, beat a target split over the last 100 m. Hits in a row multiply the points.")
+                        .font(.footnote).foregroundStyle(Theme.dim)
+                }
+            }
+            .tint(Theme.amber)
+            .disabled(piece.intervalSteps != nil)
         }
         .panel(18)
 
         Button("Sit ready") {
-            Launcher.start(piece, sessions: sessions, choice: choice, pace: paceSplit, game: game)
+            Launcher.start(piece, sessions: sessions, prefs: .current, progress: progress, game: game)
         }
         .buttonStyle(PrimaryButtonStyle())
+
+        ChallengeCard(sessions: sessions)
 
         Toggle(isOn: $coxOn) {
             VStack(alignment: .leading, spacing: 2) {
@@ -92,17 +107,25 @@ struct HomeView: View {
     }
 
     @ViewBuilder private var right: some View {
+        SeasonCard(sessions: sessions)
+        JourneyCard()
+        MilestonesCard()
         RowerCard()
         HealthCard()
         LogbookCard(sessions: sessions)
     }
 
     private var rivalNote: String {
+        if piece.isStorm { return "No rival on this one: a squall starts 80 m behind you and keeps getting faster." }
+        if piece.intervalSteps != nil { return "Intervals race your own targets, set a little faster than your recent split." }
+        if choice == .fleet { return "Six crews spread out ahead. Reel them in one by one; each one you pass is worth points." }
         let rows = sessions.map(\.past)
         let resolved = Records.rival(for: piece, choice: choice, paceSplit: paceSplit, rows: rows)
         switch resolved.rival {
         case .ghost:
             return "Your ghost replays that row second by second in the next lane."
+        case .target(let split):
+            return "A target pace of \(Fmt.clock(split)) /500 m."
         case .paceBoat(let split):
             if resolved.fellBack {
                 return "No \(piece.name) on record yet, so a pace boat at \(Fmt.clock(split)) stands in. Row one and it becomes your ghost."
@@ -118,7 +141,8 @@ struct HomeView: View {
             switch p.goal {
             case .distance: return "Best " + Fmt.clock(best.duration, tenths: true)
             case .time: return "Best \(Fmt.meters(best.distance)) m"
-            case .open: return "Longest \(Fmt.meters(best.distance)) m"
+            case .open, .storm: return "Longest \(Fmt.meters(best.distance)) m"
+            case .intervals: return best.averageWorkSplit.map { "Best avg " + Fmt.clock($0, tenths: true) } ?? "No result yet"
             }
         }()
         let selected = p.id == pieceID

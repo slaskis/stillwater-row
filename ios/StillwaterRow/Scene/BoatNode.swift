@@ -4,13 +4,19 @@ import UIKit
 /// A single scull with an animated sculler: slide, body swing, and oars that dip, drive and feather.
 @MainActor
 final class BoatNode {
-    enum Style { case player, ghost }
+    enum Style {
+        case player, ghost
+        case crew(Crew)
+
+        var isGhost: Bool { if case .ghost = self { return true } else { return false } }
+    }
 
     let root = SCNNode()
     private let body = SCNNode()
     private let lean = SCNNode()
     private var oars: [(yaw: SCNNode, pitch: SCNNode, tip: SCNNode, side: Float)] = []
     private let labelNode = SCNNode()
+    private var labelColor = UIColor(hex: 0x8fe1ee)
 
     private(set) var isDriving = false
     private var p: Double = 1
@@ -22,6 +28,8 @@ final class BoatNode {
 
     /// 0…1 through the recovery; 0 while driving.
     var recoveryProgress: Double { isDriving ? 0 : p }
+
+    func setVisible(_ visible: Bool) { root.isHidden = !visible }
 
     private static let catchAngle = 0.95, finishAngle = -0.55
 
@@ -35,7 +43,15 @@ final class BoatNode {
             m.writesToDepthBuffer = false
             return m
         }()
-        func mat(_ hex: UInt32) -> SCNMaterial { style == .ghost ? ghost : Palette.lambert(hex) }
+        let isGhost = style.isGhost
+        func mat(_ hex: UInt32) -> SCNMaterial { isGhost ? ghost : Palette.lambert(hex) }
+        var hullHex: UInt32 = 0xf2efe6, shirtHex: UInt32 = 0xe39a3b, bladeHex: UInt32 = 0xe8743a
+        if case .crew(let c) = style {
+            hullHex = c.hull
+            shirtHex = c.shirt
+            bladeHex = c.blade
+            labelColor = c.shirt == 0x1f1f1f ? UIColor(hex: 0xe7eff0) : UIColor(hex: c.shirt).withLightness(minimum: 0.62)
+        }
 
         func part(_ g: SCNGeometry, _ m: SCNMaterial, _ pos: SCNVector3, scale: SCNVector3? = nil, euler: SCNVector3? = nil) -> SCNNode {
             g.materials = [m]
@@ -48,14 +64,14 @@ final class BoatNode {
 
         let hull = SCNSphere(radius: 1)
         hull.segmentCount = 24
-        root.addChildNode(part(hull, mat(0xf2efe6), SCNVector3(x: 0, y: 0.05, z: 0), scale: SCNVector3(x: 0.25, y: 0.12, z: 4.1)))
+        root.addChildNode(part(hull, mat(hullHex), SCNVector3(x: 0, y: 0.05, z: 0), scale: SCNVector3(x: 0.25, y: 0.12, z: 4.1)))
         root.addChildNode(part(SCNBox(width: 1.72, height: 0.03, length: 0.05, chamferRadius: 0), mat(0x2c3436), SCNVector3(x: 0, y: 0.33, z: 0)))
 
         root.addChildNode(body)
         body.addChildNode(part(SCNBox(width: 0.3, height: 0.12, length: 0.75, chamferRadius: 0.03), mat(0x2c3436), SCNVector3(x: 0, y: 0.24, z: 0.42)))
         lean.position = SCNVector3(x: 0, y: 0.24, z: 0)
         body.addChildNode(lean)
-        lean.addChildNode(part(SCNCone(topRadius: 0.15, bottomRadius: 0.2, height: 0.62), mat(0xe39a3b), SCNVector3(x: 0, y: 0.31, z: 0)))
+        lean.addChildNode(part(SCNCone(topRadius: 0.15, bottomRadius: 0.2, height: 0.62), mat(shirtHex), SCNVector3(x: 0, y: 0.31, z: 0)))
         lean.addChildNode(part(SCNSphere(radius: 0.12), mat(0xd8a888), SCNVector3(x: 0, y: 0.74, z: 0)))
 
         for side: Float in [1, -1] {
@@ -66,7 +82,7 @@ final class BoatNode {
             let shaft = SCNCylinder(radius: 0.022, height: 2.9)
             shaft.radialSegmentCount = 6
             pitch.addChildNode(part(shaft, mat(0x2b2f31), SCNVector3(x: side * 0.6, y: 0, z: 0), euler: SCNVector3(x: 0, y: 0, z: .pi / 2)))
-            pitch.addChildNode(part(SCNBox(width: 0.5, height: 0.17, length: 0.025, chamferRadius: 0), mat(0xe8743a), SCNVector3(x: side * 1.85, y: 0, z: 0)))
+            pitch.addChildNode(part(SCNBox(width: 0.5, height: 0.17, length: 0.025, chamferRadius: 0), mat(bladeHex), SCNVector3(x: side * 1.85, y: 0, z: 0)))
             let tip = SCNNode()
             tip.position = SCNVector3(x: side * 1.85, y: 0, z: 0)
             pitch.addChildNode(tip)
@@ -74,18 +90,19 @@ final class BoatNode {
             oars.append((yaw, pitch, tip, side))
         }
 
-        if style == .ghost {
+        if case .player = style {} else {
             labelNode.position = SCNVector3(x: 0, y: 2.1, z: 0)
             labelNode.constraints = [SCNBillboardConstraint()]
             root.addChildNode(labelNode)
-            root.renderingOrder = 10
+            if isGhost { root.renderingOrder = 10 }
         }
+        if case .crew(let c) = style { setLabel(c.name) }
         animate(dt: 0)
     }
 
     func setLabel(_ text: String) {
-        let plane = SCNPlane(width: 3.4, height: 0.85)
-        plane.materials = [Palette.unlit(Tex.pill(text, color: UIColor(hex: 0x8fe1ee)), transparent: true)]
+        let plane = SCNPlane(width: 3.4 * Tex.pillWidth(text) / 512, height: 0.85)
+        plane.materials = [Palette.unlit(Tex.pill(text, color: labelColor), transparent: true)]
         labelNode.geometry = plane
     }
 

@@ -17,6 +17,8 @@ final class RowSession {
     var healthWorkoutID: UUID? = nil
     var averageHeartRate: Double? = nil
     var maxHeartRate: Double? = nil
+    var averageWorkSplit: Double? = nil
+    var score: Int = 0
 
     init(result: RowResult) {
         date = result.start
@@ -28,6 +30,8 @@ final class RowSession {
         samples = result.samples
         splits = result.splits
         averageWatts = result.averageWatts
+        averageWorkSplit = result.averageWorkSplit
+        score = result.score
     }
 
     var piece: Piece { Piece.with(id: pieceID) }
@@ -36,6 +40,7 @@ final class RowSession {
 
     var past: PastRow {
         PastRow(pieceID: pieceID, date: date, duration: duration, distance: distance,
-                complete: complete, samples: samples, strokes: strokes)
+                complete: complete, samples: samples, strokes: strokes,
+                averageWorkSplit: averageWorkSplit, score: score)
     }
 }

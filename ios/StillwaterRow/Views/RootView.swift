@@ -26,6 +26,7 @@ struct RootView: View {
     @Environment(RowGame.self) private var game
     @Environment(BluetoothLink.self) private var link
     @Environment(HealthStore.self) private var health
+    @Environment(ProgressStore.self) private var progress
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
 
@@ -52,7 +53,7 @@ struct RootView: View {
     }
 
     private func wire() {
-        game.attach(link: link)
+        game.attach(link: link, progress: progress)
         link.resume()
         let context = context, health = health, game = game
         game.onFinish = { result in

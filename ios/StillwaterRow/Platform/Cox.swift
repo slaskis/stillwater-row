@@ -6,12 +6,16 @@ import AVFoundation
 final class Cox: NSObject {
     var enabled = true
     private let synth = AVSpeechSynthesizer()
+    private let rivalSynth = AVSpeechSynthesizer()
     private var voice: AVSpeechSynthesisVoice?
+    private var rivalVoice: AVSpeechSynthesisVoice?
 
     override init() {
         super.init()
         voice = Self.bestVoice()
+        rivalVoice = Self.bestVoice(excluding: voice)
         synth.delegate = self
+        rivalSynth.delegate = self
     }
 
     var voiceDescription: String {
@@ -25,7 +29,32 @@ final class Cox: NSObject {
 
     var hasGoodVoice: Bool { voice.map { $0.quality == .premium || $0.quality == .enhanced } ?? false }
 
-    func reloadVoice() { voice = Self.bestVoice() }
+    func reloadVoice() {
+        voice = Self.bestVoice()
+        rivalVoice = Self.bestVoice(excluding: voice)
+    }
+
+    private func activateAudio() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
+        try? session.setActive(true)
+    }
+
+    /// A regatta rival shouting across the water, in a different voice from the cox.
+    func rivalSay(_ text: String) {
+        guard enabled, !text.isEmpty, !rivalSynth.isSpeaking else { return }
+        activateAudio()
+        let u = AVSpeechUtterance(string: text)
+        u.voice = rivalVoice ?? voice
+        if rivalVoice == nil || rivalVoice?.identifier == voice?.identifier { u.pitchMultiplier = 1.3 }
+        u.rate = AVSpeechUtteranceDefaultSpeechRate * 1.05
+        rivalSynth.speak(u)
+    }
+
+    func stopAll() {
+        synth.stopSpeaking(at: .immediate)
+        rivalSynth.stopSpeaking(at: .immediate)
+    }
 
     func say(_ text: String, interrupt: Bool = false) {
         guard enabled, !text.isEmpty else { return }
@@ -33,9 +62,7 @@ final class Cox: NSObject {
             guard interrupt else { return }
             synth.stopSpeaking(at: .immediate)
         }
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .voicePrompt, options: [.mixWithOthers, .duckOthers])
-        try? session.setActive(true)
+        activateAudio()
         let u = AVSpeechUtterance(string: text)
         u.voice = voice
         synth.speak(u)
@@ -43,8 +70,8 @@ final class Cox: NSObject {
 
     static func pick(_ lines: [String]) -> String { lines.randomElement() ?? "" }
 
-    static func bestVoice() -> AVSpeechSynthesisVoice? {
-        let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("en") }
+    static func bestVoice(excluding other: AVSpeechSynthesisVoice? = nil) -> AVSpeechSynthesisVoice? {
+        let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("en") && $0.identifier != other?.identifier }
         func score(_ v: AVSpeechSynthesisVoice) -> Int {
             var s = 0
             switch v.quality {
@@ -56,13 +83,14 @@ final class Cox: NSObject {
             if v.voiceTraits.contains(.isNoveltyVoice) { s -= 10 }
             return s
         }
+        if other != nil { return voices.max { score($0) < score($1) } }
         return voices.max { score($0) < score($1) } ?? AVSpeechSynthesisVoice(language: "en-GB")
     }
 
     private func releaseAudio() {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(400))
-            guard !self.synth.isSpeaking else { return }
+            guard !self.synth.isSpeaking, !self.rivalSynth.isSpeaking else { return }
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
