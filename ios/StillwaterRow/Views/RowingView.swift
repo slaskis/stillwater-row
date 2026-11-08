@@ -4,6 +4,7 @@ import SwiftUI
 struct RowingView: View {
     @Environment(RowGame.self) private var game
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var narrow = false
 
     var body: some View {
         ZStack {
@@ -18,6 +19,14 @@ struct RowingView: View {
                 if sizeClass == .compact {
                     SplitPanel()
                     StatsPanel()
+                } else if narrow {
+                    // iPad in portrait: the split on top, piece and numbers below it.
+                    SplitPanel()
+                    HStack(alignment: .top, spacing: 12) {
+                        PiecePanel()
+                        Spacer(minLength: 8)
+                        StatsPanel()
+                    }
                 } else {
                     HStack(alignment: .top, spacing: 12) {
                         PiecePanel()
@@ -85,6 +94,7 @@ struct RowingView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: game.eventIntro)
         .foregroundStyle(Theme.mist)
+        .onGeometryChange(for: Bool.self) { $0.size.width < 1000 } action: { narrow = $0 }
     }
 }
 

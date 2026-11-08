@@ -51,6 +51,19 @@ private enum Props {
 final class RiverScene {
     let scene = SCNScene()
     let cameraNode = SCNNode()
+    let rainHolder = SCNNode()
+
+    /// Keeps about the same side-to-side view in portrait as in landscape.
+    func setAspect(_ aspect: Double) {
+        guard let camera = cameraNode.camera, aspect.isFinite, aspect > 0 else { return }
+        if aspect < 1 {
+            camera.projectionDirection = .horizontal
+            camera.fieldOfView = 72
+        } else {
+            camera.projectionDirection = .vertical
+            camera.fieldOfView = 55
+        }
+    }
     let boat = BoatNode(style: .player)
     let ghost = BoatNode(style: .ghost)
     var cameraMode = 0 {
@@ -180,6 +193,7 @@ final class RiverScene {
 
         let camera = SCNCamera()
         camera.fieldOfView = 55
+        camera.projectionDirection = .vertical
         camera.zNear = 0.1
         camera.zFar = 1500
         cameraNode.camera = camera
@@ -347,7 +361,8 @@ final class RiverScene {
         camPos += (target - camPos) * k
         camLook += (look - camLook) * k
         cameraNode.simdPosition = camPos
-        cameraNode.simdLook(at: camLook)
+        // Always level: the plain look(at:) keeps whatever roll the camera had, which crept in when switching views.
+        cameraNode.simdLook(at: camLook, up: SIMD3<Float>(0, 1, 0), localFront: SIMD3<Float>(0, 0, -1))
     }
 
     /// Keeps ~1.4 km of river around the boat; builds at most one new stretch per frame to avoid hitches.

@@ -70,17 +70,16 @@ extension RiverScene {
         ps.particleLifeSpan = 1.1
         ps.particleVelocity = 26
         ps.emittingDirection = SCNVector3(x: 0.08, y: -1, z: 0.05)
-        ps.particleSize = 0.9
-        ps.particleColor = UIColor(white: 0.85, alpha: 0.55)
+        ps.particleSize = 0.42
+        ps.particleColor = UIColor(white: 0.85, alpha: 0.4)
         ps.blendMode = .alpha
         ps.isAffectedByGravity = false
         ps.isLightingEnabled = false
         ps.orientationMode = .billboardYAligned
-        let holder = SCNNode()
-        holder.name = "rain"
-        holder.position = SCNVector3(x: 0, y: 22, z: -12)
-        holder.addParticleSystem(ps)
-        cameraNode.addChildNode(holder)
+        // Rain falls straight down in world space, wherever the camera looks; it follows the camera each frame.
+        rainHolder.name = "rain"
+        rainHolder.addParticleSystem(ps)
+        scene.rootNode.addChildNode(rainHolder)
         return ps
     }
 
@@ -183,6 +182,10 @@ extension RiverScene {
     /// Keeps the sky centred on the camera and moves the night lights to the lanterns nearest the boat.
     func updateAtmosphere(dt: Double, time: Double, distance: Double) {
         skyDome.simdPosition = cameraNode.simdPosition
+        var ahead = cameraNode.simdWorldFront
+        ahead.y = 0
+        let len = simd_length(ahead)
+        rainHolder.simdPosition = cameraNode.simdPosition + (len > 0.01 ? ahead / len * 12 : .zero) + SIMD3<Float>(0, 22, 0)
         if look.lanterns {
             // The next lantern on each side (every 60 m): fades in from 50 m ahead, out 10 m behind.
             for (i, node) in lanternLights.enumerated() {

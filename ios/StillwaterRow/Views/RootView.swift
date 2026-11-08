@@ -2,12 +2,26 @@ import SceneKit
 import SwiftData
 import SwiftUI
 
+/// Tells the scene its shape whenever the view resizes or rotates.
+final class RiverSCNView: SCNView {
+    var onLayout: ((CGSize) -> Void)?
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?(bounds.size)
+    }
+}
+
 /// The SceneKit river, always running behind every screen.
 struct RiverView: UIViewRepresentable {
     let game: RowGame
 
     func makeUIView(context: Context) -> SCNView {
-        let view = SCNView(frame: .zero)
+        let view = RiverSCNView(frame: .zero)
+        let world = game.world
+        view.onLayout = { size in
+            guard size.height > 0 else { return }
+            MainActor.assumeIsolated { world.setAspect(Double(size.width / size.height)) }
+        }
         view.scene = game.world.scene
         view.pointOfView = game.world.cameraNode
         view.rendersContinuously = true
